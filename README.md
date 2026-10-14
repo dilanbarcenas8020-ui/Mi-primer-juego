@@ -11,22 +11,35 @@ Abre `index.html` en tu navegador.
 - **Computadora:** WASD o flechas para moverte · P o Esc para pausar · 1, 2, 3 para elegir cartas · R para cambiar las cartas.
 - **Celular:** arrastra el dedo en cualquier parte de la pantalla (joystick flotante).
 
-Recoge las gemas que sueltan los enemigos para subir de nivel. Sobrevive 15 minutos y derrota a **El Devorador** para ganar.
+Recoge las gemas que sueltan los enemigos para subir de nivel. Cada 5 niveles aparece un **monstruo especial**, cada 15 un **subjefe** y cada 30 un **jefe**. Derrota al jefe del nivel 30 para completar la etapa y desbloquear el siguiente mapa.
+
+## Mapas
+
+| Mapa | Dificultad | Monstruos | Oro | Novedades |
+| --- | --- | --- | --- | --- |
+| 🌃 Ciudad Neón | Fácil | x1 | x1 | Monstruos clásicos |
+| ☣️ Pantano Tóxico | Normal | Vida x1,8 · Daño x1,3 | x1,7 | Escupidor (charcos tóxicos), Divisor (se parte en 3) · arma Láser · pasiva Blindaje |
+| ❄️ Glaciar Eterno | Difícil | Vida x2,7 · Daño x1,55 | x2,5 | Cargador (embiste), Escarcha (hielo que te frena) · arma Guadaña · pasiva Duplicador |
+| 🌋 Volcán Infernal | Muy difícil | Vida x4,6 · Daño x1,95 | x3,5 | Kamikaze (explota), Invocador (llama diablillos) · arma Agujero Negro |
+| 🌌 Vacío Estelar | Pesadilla | Vida x6,8 · Daño x2,3 | x5 | Espectro (se teletransporta), Francotirador (láser) · arma Supernova |
+
+Cada mapa conserva los monstruos de los anteriores, tiene su propio subjefe y jefe, y la dificultad extra entra poco a poco durante los primeros 3 minutos. Los monstruos más difíciles dan más recompensas: los especiales sueltan un cofre, los subjefes un cofre de 3 premios y los jefes un cofre de 5 premios, además de mucho oro.
 
 ## Qué incluye
 
 **Dentro de la partida**
-- 6 armas, cada una con 5 niveles y una **evolución** secreta si la combinas con la pasiva correcta.
-- 7 mejoras pasivas (poder, cadencia, velocidad, imán, vitalidad, área, suerte).
+- 10 armas (4 de ellas solo en los mapas difíciles), cada una con 5 niveles y una **evolución** secreta si la combinas con la pasiva correcta.
+- 9 mejoras pasivas (poder, cadencia, velocidad, imán, vitalidad, área, suerte, blindaje y duplicador).
 - Cartas con rareza: común, nueva, épica (doble mejora) y legendaria (evolución).
-- 4 tipos de enemigos, élites dorados que sueltan cofres, enjambres que te rodean y 5 jefes.
+- 12 tipos de enemigos con ataques distintos, élites dorados, enjambres, monstruos especiales, subjefes y jefes con ataques que se avisan antes de golpear (círculos, rayos, ondas).
 - Cofres con 1, 3 o 5 premios, imanes, bombas y corazones.
 - Combos con bonus de oro, golpes críticos, números de daño, explosiones, vibración de pantalla y música.
 
 **Entre partidas**
-- **Mejoras permanentes:** 12 mejoras que se compran con oro.
+- **Mejoras permanentes:** 14 mejoras que se compran con oro, incluidas ranuras extra de arma y de pasiva.
+- **Mapas:** 5 mapas que se desbloquean uno tras otro.
 - **Personajes:** 6 personajes, cada uno con su propia arma inicial y estadísticas.
-- **Misiones:** 21 logros que dan oro al reclamarlos.
+- **Misiones:** 34 logros que dan oro al reclamarlos.
 - **Recompensa diaria** con racha de 7 días.
 - Récords de tiempo, nivel y combo. Al terminar cada partida verás qué tan cerca estás de tu siguiente meta.
 

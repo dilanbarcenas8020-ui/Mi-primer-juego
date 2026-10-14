@@ -36,6 +36,12 @@ const Save = (() => {
         data.stats = Object.assign(fresh().stats, saved.stats || {});
         data.daily = Object.assign(fresh().daily, saved.daily || {});
         data.mapStats = Object.assign({}, saved.mapStats || {});
+        if (!saved.mapStats) {
+          // Partida de la versión anterior: todo se jugó en la Ciudad Neón
+          const old = data.stats;
+          data.mapStats.ciudad = { bestLevel: old.bestLevel || 0, bestTime: old.bestTime || 0, cleared: (old.wins || 0) > 0 };
+          if (data.mapStats.ciudad.cleared) data.mapsUnlocked = 2;
+        }
         data.mapsUnlocked = Math.max(1, Math.min(MAPS.length, data.mapsUnlocked | 0));
         data.mapSel = Math.max(0, Math.min(data.mapsUnlocked - 1, data.mapSel | 0));
       }
