@@ -1,0 +1,475 @@
+// Interfaz: menús, tienda, misiones, recompensas, HUD y pantallas de la partida.
+
+const UI = (() => {
+  const $ = id => document.getElementById(id);
+  const SCREENS = ['menu', 'chars', 'shop', 'missions', 'settings', 'daily', 'levelup', 'chest', 'pause', 'over'];
+  let current = 'menu';
+
+  function show(id) {
+    current = id;
+    for (const s of SCREENS) $(s).classList.toggle('active', s === id);
+  }
+
+  function fmt(n) { return Math.floor(n).toLocaleString('es'); }
+  function fmtTime(t) {
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  function refreshGold() {
+    document.querySelectorAll('.goldVal').forEach(el => { el.textContent = fmt(Save.data.gold); });
+  }
+
+  function affordableUpgrades() {
+    let n = 0;
+    for (const it of SHOP) {
+      const lv = Save.upgrade(it.id);
+      if (lv < it.max && Save.data.gold >= shopCost(it, lv)) n++;
+    }
+    return n;
+  }
+
+  function setBadge(el, n) {
+    el.classList.toggle('hidden', !n);
+    if (n) el.textContent = n;
+  }
+
+  // ---------- Menú principal ----------
+  function renderMenu() {
+    refreshGold();
+    const ch = CHARACTERS[Save.data.char];
+    const w = WEAPONS[ch.weapon];
+    $('menuChar').innerHTML = `
+      <div class="avatar" style="--c:${ch.color}">${w.icon}</div>
+      <div class="info"><b>${esc(ch.name)}</b><small>${w.icon} ${esc(w.name)} · Toca para cambiar</small></div>`;
+    setBadge($('missionBadge'), Save.claimableCount());
+    setBadge($('shopBadge'), affordableUpgrades());
+    $('dailyBadge').classList.toggle('hidden', !Save.dailyAvailable());
+    const s = Save.data.stats;
+    $('records').innerHTML = s.runs
+      ? `🏆 Mejor tiempo <b>${fmtTime(s.bestTime)}</b> · Nivel máx. <b>${s.bestLevel}</b><br>💀 ${fmt(s.kills)} enemigos · ☠️ ${s.bossKills} jefes · 🎮 ${s.runs} partidas`
+      : 'Llega lo más lejos que puedas. ¡Cada partida te hace más fuerte!';
+  }
+
+  // ---------- Personajes ----------
+  function renderChars() {
+    refreshGold();
+    const list = $('charList');
+    list.innerHTML = '';
+    Object.entries(CHARACTERS).forEach(([id, ch], i) => {
+      const owned = !!Save.data.chars[id];
+      const selected = Save.data.char === id;
+      const w = WEAPONS[ch.weapon];
+      const row = document.createElement('div');
+      row.className = 'row' + (selected ? ' selected' : '') + (owned ? '' : ' locked');
+      row.style.animationDelay = i * 40 + 'ms';
+      let btn;
+      if (selected) btn = '<button class="btn" disabled>Elegido</button>';
+      else if (owned) btn = '<button class="btn" data-act="pick">Elegir</button>';
+      else btn = `<button class="btn" data-act="buy" ${Save.data.gold < ch.price ? 'disabled' : ''}>🪙 ${fmt(ch.price)}</button>`;
+      row.innerHTML = `
+        <div class="avatar" style="--c:${ch.color}">${owned ? w.icon : '🔒'}</div>
+        <div class="grow"><b>${esc(ch.name)}</b><small>${w.icon} ${esc(w.name)} · ${esc(ch.desc)}</small></div>
+        ${btn}`;
+      const b = row.querySelector('[data-act]');
+      if (b) b.onclick = () => {
+        if (b.dataset.act === 'buy') {
+          if (Save.data.gold < ch.price) return;
+          Save.data.gold -= ch.price;
+          Save.data.chars[id] = true;
+          Sound.play('buy');
+          banner(`¡${ch.name} desbloqueado!`, ch.color);
+        } else {
+          Sound.play('click');
+        }
+        Save.data.char = id;
+        Save.write();
+        renderChars();
+      };
+      list.appendChild(row);
+    });
+  }
+
+  // ---------- Tienda ----------
+  function renderShop() {
+    refreshGold();
+    const grid = $('shopList');
+    grid.innerHTML = '';
+    SHOP.forEach((it, i) => {
+      const lv = Save.upgrade(it.id);
+      const maxed = lv >= it.max;
+      const cost = shopCost(it, lv);
+      const can = !maxed && Save.data.gold >= cost;
+      const el = document.createElement('div');
+      el.className = 'shop-item' + (can ? ' affordable' : '');
+      el.style.animationDelay = i * 30 + 'ms';
+      let pips = '';
+      for (let k = 0; k < it.max; k++) pips += `<i class="${k < lv ? 'on' : ''}"></i>`;
+      el.innerHTML = `
+        <div class="ico">${it.icon}</div>
+        <b>${esc(it.name)}</b>
+        <small>${esc(it.desc)}</small>
+        <div class="pips">${pips}</div>
+        <button class="btn" ${can ? '' : 'disabled'}>${maxed ? 'MÁXIMO' : '🪙 ' + fmt(cost)}</button>`;
+      el.querySelector('button').onclick = () => {
+        const l = Save.upgrade(it.id), c = shopCost(it, l);
+        if (l >= it.max || Save.data.gold < c) return;
+        Save.data.gold -= c;
+        Save.data.upgrades[it.id] = l + 1;
+        Save.data.stats.bought++;
+        Save.write();
+        Sound.play('buy');
+        renderShop();
+      };
+      grid.appendChild(el);
+    });
+  }
+
+  // ---------- Misiones ----------
+  function renderMissions() {
+    refreshGold();
+    const list = $('missionList');
+    list.innerHTML = '';
+    const items = MISSIONS.map(m => ({ m, s: Save.missionState(m) }));
+    const rank = x => x.s.claimed ? 2 : x.s.done ? 0 : 1;
+    items.sort((a, b) => rank(a) - rank(b) || (b.s.cur / b.m.goal) - (a.s.cur / a.m.goal));
+    items.forEach(({ m, s }, i) => {
+      const row = document.createElement('div');
+      row.className = 'row' + (s.claimed ? ' claimed' : s.done ? ' claimable' : '');
+      row.style.animationDelay = i * 25 + 'ms';
+      const pct = Math.min(100, s.cur / m.goal * 100);
+      let right;
+      if (s.claimed) right = '<span class="reward">✔</span>';
+      else if (s.done) right = `<button class="btn primary">Reclamar ${fmt(m.reward)} 🪙</button>`;
+      else right = `<span class="reward">${fmt(m.reward)} 🪙</span>`;
+      const curTxt = m.stat === 'bestTime' ? `${fmtTime(s.cur)} / ${fmtTime(m.goal)}` : `${fmt(s.cur)} / ${fmt(m.goal)}`;
+      row.innerHTML = `
+        <div class="grow"><b>${esc(m.text)}</b><small>${curTxt}</small>
+          <div class="progress"><div style="width:${pct}%"></div></div></div>
+        ${right}`;
+      const b = row.querySelector('button');
+      if (b) b.onclick = () => {
+        if (Save.data.claimed[m.id]) return;
+        Save.data.claimed[m.id] = true;
+        Save.data.gold += m.reward;
+        Save.data.stats.goldEarned += m.reward;
+        Save.write();
+        Sound.play('chest');
+        banner(`+${fmt(m.reward)} 🪙`, '#ffd166', true);
+        renderMissions();
+      };
+      list.appendChild(row);
+    });
+  }
+
+  // ---------- Recompensa diaria ----------
+  function renderDaily() {
+    const avail = Save.dailyAvailable();
+    const streak = avail ? Save.dailyNextStreak() : Save.data.daily.streak;
+    const pos = (streak - 1) % 7;
+    let html = '';
+    DAILY_REWARDS.forEach((r, i) => {
+      let cls = 'day';
+      if (i < pos || (!avail && i === pos)) cls += ' done';
+      else if (avail && i === pos) cls += ' today';
+      html += `<div class="${cls}">Día ${i + 1}<b>${r}</b>${i < pos || (!avail && i === pos) ? '✔' : '🪙'}</div>`;
+    });
+    $('days').innerHTML = html;
+    $('dailySub').textContent = avail
+      ? `¡Racha de ${streak} día${streak > 1 ? 's' : ''}! Entra cada día para ganar más.`
+      : 'Ya reclamaste hoy. ¡Vuelve mañana para seguir tu racha!';
+    const btn = $('dailyClaim');
+    btn.disabled = !avail;
+    btn.textContent = avail ? `Reclamar ${DAILY_REWARDS[pos]} 🪙` : 'Vuelve mañana';
+  }
+
+  function openDaily() {
+    renderDaily();
+    show('daily');
+  }
+
+  // ---------- Navegación ----------
+  function go(id) {
+    Sound.play('click');
+    if (id === 'menu') renderMenu();
+    if (id === 'chars') renderChars();
+    if (id === 'shop') renderShop();
+    if (id === 'missions') renderMissions();
+    if (id === 'settings') {
+      $('optSfx').checked = Save.data.sfx;
+      $('optMusic').checked = Save.data.music;
+    }
+    show(id);
+  }
+
+  function goMenu() {
+    Game.toMenu();
+    $('hud').classList.add('hidden');
+    renderMenu();
+    show('menu');
+  }
+
+  // ---------- HUD ----------
+  let hudKey = '', lastCombo = 0, bumpT = 0;
+  const hudCache = {};
+  function setText(id, v) {
+    if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; }
+  }
+
+  function onRunStart() {
+    hudKey = '';
+    for (const k in hudCache) delete hudCache[k];
+    $('banners').innerHTML = '';
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    $('hud').classList.remove('hidden');
+    show(null);
+  }
+
+  function updateHud(S, st) {
+    const xpPct = Math.min(100, S.xp / S.xpNext * 100).toFixed(1) + '%';
+    if (hudCache.xp !== xpPct) { hudCache.xp = xpPct; $('xpFill').style.width = xpPct; }
+    setText('lvl', 'Nv ' + S.level);
+    setText('timer', fmtTime(S.t));
+    setText('kills', fmt(S.kills));
+    setText('coins', fmt(S.coins));
+
+    const key = S.weapons.map(w => w.id + w.level + (w.evolved ? 'e' : '')).join() + JSON.stringify(S.passives);
+    if (key !== hudKey) {
+      hudKey = key;
+      $('slots').innerHTML = slotsHtml(buildList(S));
+    }
+
+    const boss = S.boss;
+    $('boss').classList.toggle('hidden', !boss);
+    if (boss) {
+      setText('bossName', boss.name);
+      const w = Math.max(0, boss.hp / boss.maxHp * 100).toFixed(1) + '%';
+      if (hudCache.bw !== w) { hudCache.bw = w; $('bossFill').style.width = w; }
+    }
+
+    const showCombo = S.combo >= 5;
+    $('combo').classList.toggle('hidden', !showCombo);
+    if (showCombo) {
+      setText('comboNum', 'x' + S.combo);
+      $('comboFill').style.width = Math.max(0, S.comboT / 2.2 * 100) + '%';
+      if (S.combo !== lastCombo) { $('comboNum').classList.add('bump'); bumpT = performance.now(); }
+    }
+    if (bumpT && performance.now() - bumpT > 90) { $('comboNum').classList.remove('bump'); bumpT = 0; }
+    lastCombo = S.combo;
+  }
+
+  function buildList(S) {
+    const out = S.weapons.map(w => {
+      const d = WEAPONS[w.id];
+      return { icon: w.evolved ? d.evo.icon : d.icon, name: w.evolved ? d.evo.name : d.name, level: w.evolved ? '★' : w.level, evolved: w.evolved, kind: 'weapon' };
+    });
+    for (const id in S.passives) out.push({ icon: PASSIVES[id].icon, name: PASSIVES[id].name, level: S.passives[id], kind: 'passive' });
+    return out;
+  }
+
+  function slotsHtml(items) {
+    return items.map(it => `<div class="slot${it.kind === 'passive' ? ' passive' : ''}${it.evolved ? ' evo' : ''}" title="${esc(it.name)}">${it.icon}<i>${it.level}</i></div>`).join('');
+  }
+
+  // ---------- Avisos ----------
+  function banner(text, color = '#5cf2ff', small = false) {
+    const box = $('banners');
+    while (box.children.length > 3) box.firstChild.remove();
+    const el = document.createElement('div');
+    el.className = 'banner' + (small ? ' small' : '');
+    el.style.color = color;
+    el.textContent = text;
+    box.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  }
+
+  let hintTimer = null;
+  function hint(text, ms = 4000) {
+    const el = $('hint');
+    el.textContent = text;
+    el.classList.remove('hidden');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => el.classList.add('hidden'), ms);
+  }
+
+  // ---------- Subida de nivel ----------
+  function cardHtml(o, i) {
+    const v = o.view;
+    return `
+      <span class="tag">${esc(v.tag)}</span>
+      ${i !== undefined ? `<span class="key">${i + 1}</span>` : ''}
+      <div class="ico">${v.icon}</div>
+      <div class="body">
+        <div class="name">${esc(v.name)}</div>
+        <div class="text">${esc(v.text)}</div>
+        ${v.hint ? `<div class="hint-t">${esc(v.hint)}</div>` : ''}
+      </div>`;
+  }
+
+  function showLevelUp(opts, rerolls, level) {
+    $('luLevel').textContent = level;
+    const box = $('cards');
+    box.innerHTML = '';
+    opts.forEach((o, i) => {
+      const b = document.createElement('button');
+      b.className = 'card ' + o.rarity;
+      b.style.animationDelay = i * 70 + 'ms';
+      b.innerHTML = cardHtml(o, i);
+      b.onclick = () => Game.choose(i);
+      box.appendChild(b);
+    });
+    // Evita elegir sin querer si el dedo seguía en la pantalla
+    box.classList.add('locked');
+    setTimeout(() => box.classList.remove('locked'), 380);
+    $('rerollN').textContent = rerolls;
+    $('rerollBtn').disabled = rerolls <= 0;
+    $('hint').classList.add('hidden');
+    show('levelup');
+  }
+
+  // ---------- Cofre ----------
+  function showChest(items, gold) {
+    const box = $('chestItems');
+    box.innerHTML = '';
+    const btn = $('chestBtn');
+    btn.disabled = true;
+    show('chest');
+    const all = items.map(o => `<div class="ico">${o.view.icon}</div><div class="grow"><b>${esc(o.view.name)} <small style="display:inline">${esc(o.view.tag)}</small></b><small>${esc(o.view.text)}</small></div>`);
+    all.push(`<div class="ico">🪙</div><div class="grow"><b>+${gold} de oro</b></div>`);
+    all.forEach((html, i) => {
+      setTimeout(() => {
+        const row = document.createElement('div');
+        row.className = 'row' + (items[i] && items[i].rarity === 'legend' ? ' claimable' : '');
+        row.innerHTML = html;
+        box.appendChild(row);
+        Sound.play(i < items.length ? 'reveal' : 'coin');
+        if (i === all.length - 1) btn.disabled = false;
+      }, 350 + i * 420);
+    });
+  }
+
+  // ---------- Pausa ----------
+  function showPause(items, st) {
+    $('pauseBuild').innerHTML = slotsHtml(items);
+    const S = Game.run;
+    $('pauseStats').innerHTML = `
+      <span>Vida <b>${Math.ceil(S.player.hp)}/${st.maxHp}</b></span>
+      <span>Daño <b>x${st.might.toFixed(2)}</b></span>
+      <span>Recarga <b>x${st.cd.toFixed(2)}</b></span>
+      <span>Área <b>x${st.area.toFixed(2)}</b></span>
+      <span>Velocidad <b>${Math.round(st.speed)}</b></span>
+      <span>Crítico <b>${Math.round(st.crit * 100)}%</b></span>
+      <span>Armadura <b>${st.armor}</b></span>
+      <span>Revivir <b>${S.revives}</b></span>`;
+    show('pause');
+  }
+
+  // ---------- Fin de partida ----------
+  function showGameOver(r) {
+    $('hud').classList.add('hidden');
+    const title = $('overTitle');
+    title.textContent = r.won ? '🏆 ¡VICTORIA!' : 'HAS CAÍDO';
+    title.classList.toggle('win', r.won);
+    $('overRecords').innerHTML = r.records.map((x, i) => `<span style="animation-delay:${i * 120}ms">🏆 ¡Nuevo récord: ${x}!</span>`).join('');
+    $('overStats').innerHTML = `
+      <div><b>${fmtTime(r.time)}</b>Tiempo</div>
+      <div><b>${r.level}</b>Nivel</div>
+      <div><b>${fmt(r.kills)}</b>Enemigos</div>
+      <div><b>${fmt(r.maxCombo)}</b>Combo</div>`;
+    $('overBuild').innerHTML = slotsHtml(r.build);
+    let lines = `<div class="line"><span>Monedas recogidas</span><b>${fmt(r.coins)}</b></div>
+      <div class="line"><span>Bonus por tiempo</span><b>${fmt(r.timeBonus)}</b></div>`;
+    if (r.bossBonus) lines += `<div class="line"><span>Bonus por jefes</span><b>${fmt(r.bossBonus)}</b></div>`;
+    if (r.winBonus) lines += `<div class="line"><span>Bonus de victoria</span><b>${fmt(r.winBonus)}</b></div>`;
+    if (r.mult > 1.001) lines += `<div class="line"><span>Multiplicador de oro</span><b>x${r.mult.toFixed(2)}</b></div>`;
+    $('overBreakdown').innerHTML = lines;
+
+    // El oro sube contando
+    const totalEl = $('overTotal');
+    const t0 = performance.now(), dur = 1100;
+    const tick = now => {
+      const k = Math.min(1, (now - t0) / dur);
+      totalEl.textContent = fmt(r.total * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    if (r.total > 0) setTimeout(() => Sound.play('chest'), 300);
+
+    $('overNudges').innerHTML = nudges().join('');
+    show('over');
+  }
+
+  // Motivos para volver a jugar
+  function nudges() {
+    const out = [];
+    const claim = Save.claimableCount();
+    if (claim) out.push(`<div class="nudge">🎯 ¡Tienes <b>${claim}</b> ${claim > 1 ? 'misiones listas' : 'misión lista'} para reclamar!</div>`);
+    const buy = affordableUpgrades();
+    if (buy) out.push(`<div class="nudge">⬆️ Puedes comprar <b>${buy}</b> mejora${buy > 1 ? 's' : ''} permanente${buy > 1 ? 's' : ''}.</div>`);
+    const pending = MISSIONS.map(m => ({ m, s: Save.missionState(m) }))
+      .filter(x => !x.s.done)
+      .sort((a, b) => b.s.cur / b.m.goal - a.s.cur / a.m.goal)[0];
+    if (pending) {
+      const pct = Math.round(pending.s.cur / pending.m.goal * 100);
+      out.push(`<div class="nudge">🔥 Casi lo logras: <b>${esc(pending.m.text)}</b> (${pct}%) → ${fmt(pending.m.reward)} 🪙<div class="progress"><div style="width:${pct}%"></div></div></div>`);
+    }
+    const locked = Object.entries(CHARACTERS).filter(([id]) => !Save.data.chars[id]).sort((a, b) => a[1].price - b[1].price)[0];
+    if (locked) {
+      const [, ch] = locked;
+      const missing = ch.price - Save.data.gold;
+      out.push(missing > 0
+        ? `<div class="nudge">🔒 Te faltan <b>${fmt(missing)} 🪙</b> para desbloquear a <b>${esc(ch.name)}</b>.</div>`
+        : `<div class="nudge">🔓 ¡Ya puedes desbloquear a <b>${esc(ch.name)}</b>!</div>`);
+    }
+    return out.slice(0, 3);
+  }
+
+  function closeOverlays() { show(null); }
+
+  // ---------- Inicio ----------
+  function init() {
+    document.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => go(b.dataset.go); });
+    $('menuChar').onclick = () => go('chars');
+    $('playBtn').onclick = () => Game.start(Save.data.char);
+    $('dailyBtn').onclick = () => { Sound.play('click'); openDaily(); };
+    $('dailyClaim').onclick = () => {
+      const g = Save.claimDaily();
+      if (!g) return;
+      Sound.init();
+      Sound.play('chest');
+      banner(`+${g} 🪙`, '#ffd166');
+      renderDaily();
+      refreshGold();
+      setTimeout(() => { if (current === 'daily') goMenu(); }, 900);
+    };
+    $('dailyClose').onclick = () => go('menu');
+    $('rerollBtn').onclick = () => Game.reroll();
+    $('chestBtn').onclick = () => Game.closeChest();
+    $('pauseBtn').onclick = () => Game.pause();
+    $('resumeBtn').onclick = () => Game.resume();
+    $('quitBtn').onclick = () => Game.quit();
+    $('againBtn').onclick = () => Game.start(Save.data.char);
+    $('overMenuBtn').onclick = goMenu;
+    $('optSfx').onchange = e => { Save.data.sfx = e.target.checked; Save.write(); Sound.applySettings(); };
+    $('optMusic').onchange = e => { Save.data.music = e.target.checked; Save.write(); Sound.applySettings(); };
+    $('resetBtn').onclick = () => {
+      if (!confirm('¿Seguro que quieres borrar TODO tu progreso? No se puede deshacer.')) return;
+      Save.reset();
+      Sound.applySettings();
+      goMenu();
+    };
+    document.addEventListener('pointerdown', () => Sound.init(), { once: true });
+
+    renderMenu();
+    show('menu');
+    if (Save.dailyAvailable()) openDaily();
+  }
+
+  return {
+    init, show, banner, hint, updateHud, onRunStart, showLevelUp, showChest, showPause,
+    showGameOver, closeOverlays,
+  };
+})();

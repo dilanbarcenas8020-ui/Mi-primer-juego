@@ -2,591 +2,168 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Guardián Estelar</title>
-<style>
-  :root {
-    --bg: #05060f;
-    --fg: #e8ecff;
-    --accent: #5cf2ff;
-    --warn: #ff5c8a;
-    --gold: #ffd166;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    height: 100%;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    overflow: hidden;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  #wrap {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  canvas {
-    display: block;
-    background: radial-gradient(ellipse at center, #0d1030 0%, #05060f 70%);
-    box-shadow: 0 0 40px rgba(92, 242, 255, 0.15);
-  }
-  #hud {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    display: flex;
-    justify-content: space-between;
-    padding: 12px 16px;
-    font-weight: 700;
-    font-size: 16px;
-    pointer-events: none;
-    text-shadow: 0 0 6px rgba(0,0,0,.8);
-  }
-  #hud .lives { color: var(--warn); letter-spacing: 2px; }
-  #hud .score { color: var(--accent); }
-  #hud .level { color: var(--gold); }
-  .overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    text-align: center;
-    padding: 16px;
-    background: rgba(5, 6, 15, 0.78);
-    backdrop-filter: blur(3px);
-  }
-  .overlay.hidden { display: none; }
-  .overlay h1 {
-    margin: 0;
-    font-size: clamp(32px, 8vw, 56px);
-    color: var(--accent);
-    text-shadow: 0 0 18px rgba(92, 242, 255, 0.6);
-  }
-  .overlay p { margin: 0; max-width: 420px; line-height: 1.5; opacity: .9; }
-  .overlay .big { font-size: 22px; color: var(--gold); font-weight: 700; }
-  button {
-    font: inherit;
-    font-size: 18px;
-    font-weight: 700;
-    padding: 12px 28px;
-    border-radius: 999px;
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--accent);
-    cursor: pointer;
-  }
-  button:hover, button:focus-visible { background: var(--accent); color: var(--bg); outline: none; }
-  .keys { font-size: 14px; opacity: .7; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070816">
+<meta name="description" content="Horda Neón: sobrevive a oleadas infinitas, sube de nivel y hazte imparable.">
+<title>Horda Neón</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="wrap">
-  <canvas id="game"></canvas>
-  <div id="hud">
-    <span class="lives" id="lives"></span>
-    <span class="level" id="level"></span>
-    <span class="score" id="score"></span>
-  </div>
+<canvas id="game"></canvas>
 
-  <div class="overlay" id="menu">
-    <h1>Guardián Estelar</h1>
-    <p>Defiende la galaxia de los asteroides y las naves invasoras. Recoge estrellas doradas para mejorar tu disparo.</p>
-    <p class="big" id="menuBest"></p>
-    <button id="startBtn">Jugar</button>
-    <p class="keys">Computadora: ← → ↑ ↓ o WASD para moverte · Espacio para disparar · P para pausar<br>
-      Celular: arrastra el dedo para mover la nave (dispara sola)</p>
+<!-- Interfaz durante la partida -->
+<div id="hud" class="hidden">
+  <div class="xp"><div class="xp-fill" id="xpFill"></div><span id="lvl">Nv 1</span></div>
+  <div class="hud-top">
+    <div class="slots" id="slots"></div>
+    <div class="timer" id="timer">00:00</div>
+    <div class="counters">
+      <span>💀 <b id="kills">0</b></span>
+      <span>🪙 <b id="coins">0</b></span>
+    </div>
   </div>
-
-  <div class="overlay hidden" id="pause">
-    <h1>Pausa</h1>
-    <button id="resumeBtn">Continuar</button>
+  <div class="boss hidden" id="boss">
+    <div class="boss-name" id="bossName"></div>
+    <div class="boss-bar"><div id="bossFill"></div></div>
   </div>
-
-  <div class="overlay hidden" id="over">
-    <h1>Fin del juego</h1>
-    <p class="big" id="finalScore"></p>
-    <p id="finalBest"></p>
-    <button id="againBtn">Jugar otra vez</button>
+  <div class="combo hidden" id="combo">
+    <b id="comboNum">0</b><span>COMBO</span>
+    <div class="combo-bar"><div id="comboFill"></div></div>
   </div>
+  <button class="pause-btn" id="pauseBtn" aria-label="Pausa">❚❚</button>
 </div>
+<div id="banners"></div>
+<div id="hint" class="hint hidden"></div>
 
-<script>
-(() => {
-  const W = 480, H = 720;
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  canvas.width = W;
-  canvas.height = H;
+<!-- Menú principal -->
+<section class="screen" id="menu">
+  <div class="topbar">
+    <div class="gold">🪙 <b class="goldVal">0</b></div>
+    <button class="icon-btn" data-go="settings" aria-label="Ajustes">⚙️</button>
+  </div>
+  <div class="menu-center">
+    <h1 class="logo">HORDA<span>NEÓN</span></h1>
+    <p class="tagline">Sobrevive a la horda. Hazte imparable.</p>
+    <div class="char-preview" id="menuChar"></div>
+    <button class="btn big primary" id="playBtn">▶ JUGAR</button>
+    <div class="menu-grid">
+      <button class="btn" data-go="chars">🧑‍🚀 Personajes</button>
+      <button class="btn" data-go="shop">⬆️ Mejoras<i class="badge hidden" id="shopBadge"></i></button>
+      <button class="btn" data-go="missions">🎯 Misiones<i class="badge hidden" id="missionBadge"></i></button>
+      <button class="btn" id="dailyBtn">🎁 Diario<i class="badge hidden" id="dailyBadge">!</i></button>
+    </div>
+    <div class="records" id="records"></div>
+  </div>
+</section>
 
-  const $ = id => document.getElementById(id);
-  const ui = {
-    lives: $('lives'), score: $('score'), level: $('level'),
-    menu: $('menu'), pause: $('pause'), over: $('over'),
-    menuBest: $('menuBest'), finalScore: $('finalScore'), finalBest: $('finalBest'),
-  };
+<!-- Personajes -->
+<section class="screen" id="chars">
+  <div class="topbar">
+    <button class="icon-btn" data-go="menu" aria-label="Volver">←</button>
+    <h2>Personajes</h2>
+    <div class="gold">🪙 <b class="goldVal">0</b></div>
+  </div>
+  <div class="list" id="charList"></div>
+</section>
 
-  // Ajusta el canvas a la pantalla manteniendo la proporción
-  function resize() {
-    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
-    canvas.style.width = (W * scale) + 'px';
-    canvas.style.height = (H * scale) + 'px';
-  }
-  window.addEventListener('resize', resize);
-  resize();
+<!-- Tienda de mejoras permanentes -->
+<section class="screen" id="shop">
+  <div class="topbar">
+    <button class="icon-btn" data-go="menu" aria-label="Volver">←</button>
+    <h2>Mejoras</h2>
+    <div class="gold">🪙 <b class="goldVal">0</b></div>
+  </div>
+  <p class="sub">Mejoras permanentes para todas tus partidas.</p>
+  <div class="shop-grid" id="shopList"></div>
+</section>
 
-  // Récord guardado en el navegador
-  function loadBest() {
-    try { return parseInt(localStorage.getItem('guardian-best') || '0', 10) || 0; }
-    catch (e) { return 0; }
-  }
-  function saveBest(v) {
-    try { localStorage.setItem('guardian-best', String(v)); } catch (e) {}
-  }
-  let best = loadBest();
+<!-- Misiones -->
+<section class="screen" id="missions">
+  <div class="topbar">
+    <button class="icon-btn" data-go="menu" aria-label="Volver">←</button>
+    <h2>Misiones</h2>
+    <div class="gold">🪙 <b class="goldVal">0</b></div>
+  </div>
+  <div class="list" id="missionList"></div>
+</section>
 
-  // Sonidos sencillos generados con Web Audio
-  let audio = null;
-  function beep(freq, dur, type = 'square', vol = 0.05) {
-    try {
-      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-      const o = audio.createOscillator();
-      const g = audio.createGain();
-      o.type = type;
-      o.frequency.value = freq;
-      g.gain.setValueAtTime(vol, audio.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
-      o.connect(g).connect(audio.destination);
-      o.start();
-      o.stop(audio.currentTime + dur);
-    } catch (e) {}
-  }
+<!-- Ajustes -->
+<section class="screen" id="settings">
+  <div class="topbar">
+    <button class="icon-btn" data-go="menu" aria-label="Volver">←</button>
+    <h2>Ajustes</h2>
+    <div></div>
+  </div>
+  <div class="list">
+    <label class="row toggle"><span>🔊 Efectos de sonido</span><input type="checkbox" id="optSfx"></label>
+    <label class="row toggle"><span>🎵 Música</span><input type="checkbox" id="optMusic"></label>
+    <div class="row"><span>⌨️ Controles</span><small>WASD o flechas para moverte · P o Esc para pausar · 1, 2, 3 para elegir cartas · R para cambiar cartas. En celular, arrastra el dedo.</small></div>
+    <button class="btn danger" id="resetBtn">Borrar todo el progreso</button>
+  </div>
+</section>
 
-  // Fondo de estrellas
-  const stars = Array.from({ length: 90 }, () => ({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    s: Math.random() * 2 + 0.5,
-    v: Math.random() * 60 + 20,
-  }));
+<!-- Recompensa diaria -->
+<section class="screen overlay" id="daily">
+  <div class="panel">
+    <h2>🎁 Recompensa diaria</h2>
+    <p class="sub" id="dailySub"></p>
+    <div class="days" id="days"></div>
+    <button class="btn big primary" id="dailyClaim">Reclamar</button>
+    <button class="btn" id="dailyClose">Cerrar</button>
+  </div>
+</section>
 
-  // Estado del juego
-  let state = 'menu';
-  let player, bullets, enemyBullets, enemies, particles, powerups;
-  let score, lives, level, spawnTimer, levelTimer, shake;
+<!-- Subida de nivel -->
+<section class="screen overlay" id="levelup">
+  <h2 class="lvl-title">¡NIVEL <span id="luLevel"></span>!</h2>
+  <p class="sub">Elige una mejora</p>
+  <div class="cards" id="cards"></div>
+  <button class="btn" id="rerollBtn"><span>🎲 Cambiar cartas (<b id="rerollN"></b>)</span></button>
+</section>
 
-  function reset() {
-    player = { x: W / 2, y: H - 90, r: 18, speed: 320, cooldown: 0, power: 1, invul: 2 };
-    bullets = [];
-    enemyBullets = [];
-    enemies = [];
-    particles = [];
-    powerups = [];
-    score = 0;
-    lives = 3;
-    level = 1;
-    spawnTimer = 0;
-    levelTimer = 0;
-    shake = 0;
-  }
+<!-- Cofre -->
+<section class="screen overlay" id="chest">
+  <h2 class="chest-title">🎁 ¡COFRE!</h2>
+  <div class="chest-items" id="chestItems"></div>
+  <button class="btn big primary" id="chestBtn">Continuar</button>
+</section>
 
-  // Controles
-  const keys = {};
-  window.addEventListener('keydown', e => {
-    keys[e.code] = true;
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
-    if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
-    if ((e.code === 'Enter' || e.code === 'Space') && state !== 'playing' && state !== 'paused') start();
-  });
-  window.addEventListener('keyup', e => { keys[e.code] = false; });
+<!-- Pausa -->
+<section class="screen overlay" id="pause">
+  <div class="panel">
+    <h2>Pausa</h2>
+    <div class="build" id="pauseBuild"></div>
+    <div class="stat-list" id="pauseStats"></div>
+    <button class="btn big primary" id="resumeBtn">▶ Continuar</button>
+    <button class="btn" id="quitBtn">Abandonar (te llevas el oro)</button>
+  </div>
+</section>
 
-  let touch = null;
-  function toGame(e) {
-    const r = canvas.getBoundingClientRect();
-    return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
-  }
-  canvas.addEventListener('pointerdown', e => { touch = toGame(e); });
-  canvas.addEventListener('pointermove', e => { if (touch) touch = toGame(e); });
-  window.addEventListener('pointerup', () => { touch = null; });
+<!-- Fin de partida -->
+<section class="screen overlay" id="over">
+  <div class="panel">
+    <h2 id="overTitle">HAS CAÍDO</h2>
+    <div class="new-records" id="overRecords"></div>
+    <div class="stat-grid" id="overStats"></div>
+    <div class="build" id="overBuild"></div>
+    <div class="reward-box">
+      <div id="overBreakdown"></div>
+      <div class="total">+<b id="overTotal">0</b> 🪙</div>
+    </div>
+    <div class="nudges" id="overNudges"></div>
+    <button class="btn big primary" id="againBtn">↻ JUGAR OTRA VEZ</button>
+    <button class="btn" id="overMenuBtn">Menú</button>
+  </div>
+</section>
 
-  $('startBtn').onclick = start;
-  $('againBtn').onclick = start;
-  $('resumeBtn').onclick = togglePause;
-
-  function start() {
-    reset();
-    state = 'playing';
-    ui.menu.classList.add('hidden');
-    ui.over.classList.add('hidden');
-    ui.pause.classList.add('hidden');
-    beep(440, 0.1); beep(660, 0.15);
-  }
-
-  function togglePause() {
-    if (state === 'playing') { state = 'paused'; ui.pause.classList.remove('hidden'); }
-    else if (state === 'paused') { state = 'playing'; ui.pause.classList.add('hidden'); }
-  }
-
-  function gameOver() {
-    state = 'over';
-    if (score > best) { best = score; saveBest(best); }
-    ui.finalScore.textContent = 'Puntos: ' + score;
-    ui.finalBest.textContent = 'Récord: ' + best;
-    ui.over.classList.remove('hidden');
-    beep(200, 0.4, 'sawtooth', 0.08);
-  }
-
-  // Creación de enemigos
-  function spawnEnemy() {
-    const roll = Math.random();
-    if (roll < 0.55) {
-      // Asteroide
-      const r = 14 + Math.random() * 22;
-      enemies.push({
-        type: 'rock', x: Math.random() * (W - 2 * r) + r, y: -r, r,
-        vx: (Math.random() - 0.5) * 60, vy: 70 + Math.random() * 60 + level * 12,
-        hp: Math.ceil(r / 14), rot: 0, spin: (Math.random() - 0.5) * 3, points: 10,
-        shape: Array.from({ length: 9 }, () => 0.75 + Math.random() * 0.35),
-      });
-    } else if (roll < 0.85 || level < 3) {
-      // Nave que zigzaguea y dispara
-      enemies.push({
-        type: 'ship', x: Math.random() * (W - 60) + 30, y: -20, r: 16,
-        vy: 80 + level * 8, t: Math.random() * 6, hp: 2, fire: 1 + Math.random() * 2, points: 25,
-      });
-    } else {
-      // Nave pesada
-      enemies.push({
-        type: 'tank', x: Math.random() * (W - 100) + 50, y: -30, r: 26,
-        vy: 45 + level * 4, hp: 8 + level, maxHp: 8 + level, fire: 1.5, points: 80,
-      });
-    }
-  }
-
-  function explode(x, y, color, n = 16) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = Math.random() * 220 + 40;
-      particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.6 + Math.random() * 0.4, color });
-    }
-  }
-
-  function hit(a, b) {
-    const dx = a.x - b.x, dy = a.y - b.y, r = a.r + b.r;
-    return dx * dx + dy * dy < r * r;
-  }
-
-  function damagePlayer() {
-    if (player.invul > 0) return;
-    lives--;
-    player.invul = 2;
-    player.power = Math.max(1, player.power - 1);
-    shake = 0.4;
-    explode(player.x, player.y, '#5cf2ff', 30);
-    beep(120, 0.3, 'sawtooth', 0.1);
-    if (lives <= 0) gameOver();
-  }
-
-  // Lógica
-  function update(dt) {
-    for (const s of stars) {
-      s.y += s.v * dt * (state === 'playing' ? 1.5 : 0.5);
-      if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
-    }
-    if (state !== 'playing') return;
-
-    // Movimiento del jugador
-    let dx = 0, dy = 0;
-    if (keys.ArrowLeft || keys.KeyA) dx -= 1;
-    if (keys.ArrowRight || keys.KeyD) dx += 1;
-    if (keys.ArrowUp || keys.KeyW) dy -= 1;
-    if (keys.ArrowDown || keys.KeyS) dy += 1;
-    player.x += dx * player.speed * dt;
-    player.y += dy * player.speed * dt;
-    if (touch) {
-      // La nave sigue al dedo, un poco por encima para que se vea
-      const tx = touch.x, ty = touch.y - 60;
-      player.x += (tx - player.x) * Math.min(1, dt * 12);
-      player.y += (ty - player.y) * Math.min(1, dt * 12);
-    }
-    player.x = Math.max(player.r, Math.min(W - player.r, player.x));
-    player.y = Math.max(H * 0.35, Math.min(H - player.r - 10, player.y));
-    player.invul = Math.max(0, player.invul - dt);
-
-    // Disparo
-    player.cooldown -= dt;
-    if ((keys.Space || touch) && player.cooldown <= 0) {
-      player.cooldown = 0.18;
-      const p = player.power;
-      const spread = p >= 3 ? [-0.25, 0, 0.25] : p === 2 ? [-0.08, 0.08] : [0];
-      if (p >= 4) spread.push(-0.5, 0.5);
-      for (const a of spread) {
-        bullets.push({ x: player.x, y: player.y - 18, vx: Math.sin(a) * 600, vy: -Math.cos(a) * 600, r: 4 });
-      }
-      beep(880, 0.05, 'square', 0.02);
-    }
-
-    // Niveles
-    levelTimer += dt;
-    if (levelTimer > 25) {
-      levelTimer = 0;
-      level++;
-      beep(523, 0.1); beep(784, 0.2);
-    }
-    spawnTimer -= dt;
-    if (spawnTimer <= 0) {
-      spawnEnemy();
-      spawnTimer = Math.max(0.25, 1.1 - level * 0.08);
-    }
-
-    for (const b of bullets) { b.x += b.vx * dt; b.y += b.vy * dt; }
-    bullets = bullets.filter(b => b.y > -10 && b.x > -10 && b.x < W + 10 && !b.dead);
-
-    for (const b of enemyBullets) { b.x += b.vx * dt; b.y += b.vy * dt; }
-    enemyBullets = enemyBullets.filter(b => b.y < H + 10 && b.y > -10 && b.x > -10 && b.x < W + 10 && !b.dead);
-
-    // Enemigos
-    for (const e of enemies) {
-      if (e.type === 'rock') {
-        e.x += e.vx * dt; e.y += e.vy * dt; e.rot += e.spin * dt;
-        if (e.x < e.r || e.x > W - e.r) e.vx *= -1;
-      } else if (e.type === 'ship') {
-        e.t += dt;
-        e.y += e.vy * dt;
-        e.x += Math.cos(e.t * 2.5) * 120 * dt;
-        e.fire -= dt;
-        if (e.fire <= 0 && e.y > 0) {
-          e.fire = 2.2 - Math.min(1.2, level * 0.1);
-          const a = Math.atan2(player.y - e.y, player.x - e.x);
-          enemyBullets.push({ x: e.x, y: e.y + 10, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, r: 5 });
-        }
-      } else {
-        e.y = Math.min(e.y + e.vy * dt, 140);
-        e.x += Math.sin(performance.now() / 800) * 40 * dt;
-        e.fire -= dt;
-        if (e.fire <= 0) {
-          e.fire = 1.6;
-          for (let i = -2; i <= 2; i++) {
-            const a = Math.PI / 2 + i * 0.25;
-            enemyBullets.push({ x: e.x, y: e.y + 20, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, r: 5 });
-          }
-        }
-      }
-
-      for (const b of bullets) {
-        if (!b.dead && !e.dead && hit(b, e)) {
-          b.dead = true;
-          e.hp--;
-          particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.15, color: '#fff' });
-          if (e.hp <= 0) {
-            e.dead = true;
-            score += e.points;
-            explode(e.x, e.y, e.type === 'rock' ? '#c9a27e' : e.type === 'tank' ? '#ff5c8a' : '#b48cff', e.type === 'tank' ? 40 : 18);
-            beep(e.type === 'tank' ? 90 : 160, 0.2, 'triangle', 0.08);
-            if (e.type === 'tank' || Math.random() < 0.08) {
-              powerups.push({ x: e.x, y: e.y, r: 12, vy: 90, t: 0, kind: Math.random() < 0.25 && lives < 5 ? 'life' : 'power' });
-            }
-          }
-        }
-      }
-
-      if (!e.dead && hit(e, player)) {
-        if (e.type !== 'tank') { e.dead = true; explode(e.x, e.y, '#c9a27e'); }
-        damagePlayer();
-      }
-    }
-    enemies = enemies.filter(e => !e.dead && e.y < H + 50);
-
-    for (const b of enemyBullets) {
-      if (!b.dead && hit(b, player)) { b.dead = true; damagePlayer(); }
-    }
-
-    // Mejoras
-    for (const p of powerups) {
-      p.y += p.vy * dt; p.t += dt;
-      if (hit(p, player)) {
-        p.dead = true;
-        if (p.kind === 'life') lives = Math.min(5, lives + 1);
-        else player.power = Math.min(4, player.power + 1);
-        score += 50;
-        beep(660, 0.08); beep(990, 0.12);
-      }
-    }
-    powerups = powerups.filter(p => !p.dead && p.y < H + 20);
-
-    for (const p of particles) {
-      p.x += p.vx * dt; p.y += p.vy * dt;
-      p.vx *= 0.96; p.vy *= 0.96;
-      p.life -= dt;
-    }
-    particles = particles.filter(p => p.life > 0);
-    shake = Math.max(0, shake - dt);
-  }
-
-  // Dibujo
-  function drawPlayer() {
-    if (player.invul > 0 && Math.floor(player.invul * 10) % 2 === 0) return;
-    const { x, y } = player;
-    // Fuego del motor
-    ctx.fillStyle = `rgba(255, ${150 + Math.random() * 80}, 60, 0.9)`;
-    ctx.beginPath();
-    ctx.moveTo(x - 7, y + 14);
-    ctx.lineTo(x, y + 24 + Math.random() * 10);
-    ctx.lineTo(x + 7, y + 14);
-    ctx.fill();
-    // Nave
-    ctx.fillStyle = '#5cf2ff';
-    ctx.shadowColor = '#5cf2ff';
-    ctx.shadowBlur = 15;
-    ctx.beginPath();
-    ctx.moveTo(x, y - 22);
-    ctx.lineTo(x + 18, y + 14);
-    ctx.lineTo(x + 6, y + 8);
-    ctx.lineTo(x - 6, y + 8);
-    ctx.lineTo(x - 18, y + 14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#05060f';
-    ctx.beginPath();
-    ctx.ellipse(x, y - 4, 4, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function drawEnemy(e) {
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    if (e.type === 'rock') {
-      ctx.rotate(e.rot);
-      ctx.fillStyle = '#6b5544';
-      ctx.strokeStyle = '#c9a27e';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      e.shape.forEach((k, i) => {
-        const a = (i / e.shape.length) * Math.PI * 2;
-        const px = Math.cos(a) * e.r * k, py = Math.sin(a) * e.r * k;
-        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-      });
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    } else if (e.type === 'ship') {
-      ctx.fillStyle = '#b48cff';
-      ctx.shadowColor = '#b48cff';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.moveTo(0, 16);
-      ctx.lineTo(16, -10);
-      ctx.lineTo(0, -4);
-      ctx.lineTo(-16, -10);
-      ctx.closePath();
-      ctx.fill();
-    } else {
-      ctx.fillStyle = '#ff5c8a';
-      ctx.shadowColor = '#ff5c8a';
-      ctx.shadowBlur = 16;
-      ctx.beginPath();
-      ctx.moveTo(-26, -14);
-      ctx.lineTo(26, -14);
-      ctx.lineTo(18, 14);
-      ctx.lineTo(0, 24);
-      ctx.lineTo(-18, 14);
-      ctx.closePath();
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#300';
-      ctx.fillRect(-24, -26, 48, 5);
-      ctx.fillStyle = '#ffd166';
-      ctx.fillRect(-24, -26, 48 * (e.hp / e.maxHp), 5);
-    }
-    ctx.restore();
-  }
-
-  function draw() {
-    ctx.save();
-    ctx.clearRect(0, 0, W, H);
-    if (shake > 0) ctx.translate((Math.random() - 0.5) * 12 * shake, (Math.random() - 0.5) * 12 * shake);
-
-    for (const s of stars) {
-      ctx.fillStyle = `rgba(232, 236, 255, ${0.3 + s.s / 3})`;
-      ctx.fillRect(s.x, s.y, s.s, s.s);
-    }
-
-    if (state !== 'menu') {
-      for (const p of powerups) {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.t * 2);
-        ctx.fillStyle = p.kind === 'life' ? '#ff5c8a' : '#ffd166';
-        ctx.shadowColor = ctx.fillStyle;
-        ctx.shadowBlur = 14;
-        ctx.beginPath();
-        for (let i = 0; i < 10; i++) {
-          const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
-          const r = i % 2 ? 6 : 13;
-          ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-
-      enemies.forEach(drawEnemy);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = '#5cf2ff';
-      ctx.shadowBlur = 8;
-      for (const b of bullets) ctx.fillRect(b.x - 2, b.y - 8, 4, 14);
-      ctx.fillStyle = '#ff9f43';
-      ctx.shadowColor = '#ff9f43';
-      for (const b of enemyBullets) {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.shadowBlur = 0;
-
-      for (const p of particles) {
-        ctx.globalAlpha = Math.max(0, p.life);
-        ctx.fillStyle = p.color;
-        ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
-      }
-      ctx.globalAlpha = 1;
-
-      if (state !== 'over') drawPlayer();
-    }
-    ctx.restore();
-
-    // Interfaz
-    if (state === 'menu') {
-      ui.lives.textContent = ui.level.textContent = ui.score.textContent = '';
-      ui.menuBest.textContent = best ? 'Récord: ' + best : '';
-    } else {
-      ui.lives.textContent = '♥'.repeat(Math.max(0, lives));
-      ui.level.textContent = 'Nivel ' + level;
-      ui.score.textContent = score;
-    }
-  }
-
-  let last = performance.now();
-  function loop(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    update(dt);
-    draw();
-    requestAnimationFrame(loop);
-  }
-  reset();
-  requestAnimationFrame(loop);
-})();
-</script>
+<script src="js/data.js"></script>
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/engine.js"></script>
+<script>UI.init();</script>
 </body>
 </html>
