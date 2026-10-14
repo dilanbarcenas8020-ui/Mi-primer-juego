@@ -98,6 +98,15 @@ const Sound = (() => {
       case 'buy': tone(988, 0.08, 'square', 0.06); tone(1319, 0.2, 'square', 0.06, 0, 0.07); break;
       case 'combo': tone(784, 0.1, 'triangle', 0.08); tone(1175, 0.18, 'triangle', 0.08, 0, 0.08); break;
       case 'death': tone(300, 0.9, 'sawtooth', 0.12, 40); noise(0.8, 0.15, 500); break;
+      case 'laser': if (throttle(name, 90)) { tone(1400, 0.18, 'sawtooth', 0.05, 300); tone(700, 0.18, 'square', 0.03, 150); } break;
+      case 'warn': if (throttle(name, 150)) { tone(880, 0.12, 'square', 0.05); tone(660, 0.12, 'square', 0.05, 0, 0.13); } break;
+      case 'blink': if (throttle(name, 120)) tone(300, 0.2, 'sine', 0.07, 1200); break;
+      case 'spit': if (throttle(name, 120)) noise(0.15, 0.08, 900); break;
+      case 'splash': if (throttle(name, 90)) { noise(0.25, 0.12, 700); tone(160, 0.2, 'sine', 0.08, 80); } break;
+      case 'scythe': if (throttle(name, 100)) noise(0.3, 0.1, 3000); break;
+      case 'nova': if (throttle(name, 100)) { tone(90, 0.5, 'sawtooth', 0.12, 45); noise(0.4, 0.12, 1200); } break;
+      case 'special': tone(523, 0.12, 'square', 0.07); tone(392, 0.12, 'square', 0.07, 0, 0.12); tone(523, 0.2, 'square', 0.07, 0, 0.24); break;
+      case 'stage': [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, 0.35, 'triangle', 0.08, 0, i * 0.1)); break;
       case 'win': [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, 0.3, 'square', 0.06, 0, i * 0.12)); break;
     }
   }

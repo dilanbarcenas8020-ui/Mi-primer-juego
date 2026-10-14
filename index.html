@@ -19,7 +19,10 @@
   <div class="xp"><div class="xp-fill" id="xpFill"></div><span id="lvl">Nv 1</span></div>
   <div class="hud-top">
     <div class="slots" id="slots"></div>
-    <div class="timer" id="timer">00:00</div>
+    <div class="timer-box">
+      <div class="timer" id="timer">00:00</div>
+      <div class="next-event" id="nextEvent"></div>
+    </div>
     <div class="counters">
       <span>💀 <b id="kills">0</b></span>
       <span>🪙 <b id="coins">0</b></span>
@@ -47,7 +50,10 @@
   <div class="menu-center">
     <h1 class="logo">HORDA<span>NEÓN</span></h1>
     <p class="tagline">Sobrevive a la horda. Hazte imparable.</p>
-    <div class="char-preview" id="menuChar"></div>
+    <div class="pick-row">
+      <div class="char-preview" id="menuChar"></div>
+      <div class="char-preview map-preview" id="menuMap"></div>
+    </div>
     <button class="btn big primary" id="playBtn">▶ JUGAR</button>
     <div class="menu-grid">
       <button class="btn" data-go="chars">🧑‍🚀 Personajes</button>
@@ -57,6 +63,17 @@
     </div>
     <div class="records" id="records"></div>
   </div>
+</section>
+
+<!-- Mapas / dificultad -->
+<section class="screen" id="maps">
+  <div class="topbar">
+    <button class="icon-btn" data-go="menu" aria-label="Volver">←</button>
+    <h2>Mapas</h2>
+    <div class="gold">🪙 <b class="goldVal">0</b></div>
+  </div>
+  <p class="sub">Derrota al jefe del nivel 30 de cada mapa para desbloquear el siguiente.</p>
+  <div class="list" id="mapList"></div>
 </section>
 
 <!-- Personajes -->
@@ -126,9 +143,20 @@
 
 <!-- Cofre -->
 <section class="screen overlay" id="chest">
-  <h2 class="chest-title">🎁 ¡COFRE!</h2>
+  <h2 class="chest-title" id="chestTitle">🎁 ¡COFRE!</h2>
   <div class="chest-items" id="chestItems"></div>
   <button class="btn big primary" id="chestBtn">Continuar</button>
+</section>
+
+<!-- Etapa completada -->
+<section class="screen overlay" id="stage">
+  <div class="panel stage-panel">
+    <h2 class="stage-title">🏆 ¡ETAPA COMPLETADA!</h2>
+    <p class="sub" id="stageSub"></p>
+    <div class="unlock" id="stageUnlock"></div>
+    <button class="btn big primary" id="ascendBtn">⬆️ Ascender</button>
+    <button class="btn" id="stayBtn">⚔️ Seguir aquí (jefes cada 30 niveles con más premios)</button>
+  </div>
 </section>
 
 <!-- Pausa -->
@@ -146,6 +174,7 @@
 <section class="screen overlay" id="over">
   <div class="panel">
     <h2 id="overTitle">HAS CAÍDO</h2>
+    <div class="over-map" id="overMap"></div>
     <div class="new-records" id="overRecords"></div>
     <div class="stat-grid" id="overStats"></div>
     <div class="build" id="overBuild"></div>

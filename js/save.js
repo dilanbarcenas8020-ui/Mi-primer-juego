@@ -9,9 +9,12 @@ const Save = (() => {
       upgrades: {},
       chars: { nova: true },
       char: 'nova',
+      mapsUnlocked: 1,  // cuántos mapas están desbloqueados
+      mapSel: 0,        // mapa elegido
+      mapStats: {},     // id del mapa -> { bestLevel, bestTime, cleared }
       stats: {
         kills: 0, runs: 0, bestTime: 0, bestLevel: 0, bossKills: 0, evolutions: 0,
-        maxCombo: 0, chests: 0, goldEarned: 0, bought: 0, wins: 0,
+        maxCombo: 0, chests: 0, goldEarned: 0, bought: 0, wins: 0, specials: 0, subbosses: 0,
       },
       claimed: {},
       daily: { last: '', streak: 0 },
@@ -32,6 +35,9 @@ const Save = (() => {
         data = Object.assign(base, saved);
         data.stats = Object.assign(fresh().stats, saved.stats || {});
         data.daily = Object.assign(fresh().daily, saved.daily || {});
+        data.mapStats = Object.assign({}, saved.mapStats || {});
+        data.mapsUnlocked = Math.max(1, Math.min(MAPS.length, data.mapsUnlocked | 0));
+        data.mapSel = Math.max(0, Math.min(data.mapsUnlocked - 1, data.mapSel | 0));
       }
     } catch (e) {
       data = fresh();
@@ -51,7 +57,20 @@ const Save = (() => {
 
   function stat(name) {
     if (name === 'charsUnlocked') return Object.keys(data.chars).length - 1;
+    if (name === 'mapsCleared') return MAPS.filter(m => mapStat(m.id).cleared).length;
     return data.stats[name] || 0;
+  }
+
+  function mapStat(id) {
+    if (!data.mapStats[id]) data.mapStats[id] = { bestLevel: 0, bestTime: 0, cleared: false };
+    return data.mapStats[id];
+  }
+
+  // Marca un mapa como completado y desbloquea el siguiente
+  function clearMap(idx) {
+    mapStat(MAPS[idx].id).cleared = true;
+    data.mapsUnlocked = Math.max(data.mapsUnlocked, Math.min(MAPS.length, idx + 2));
+    write();
   }
 
   function missionState(m) {
@@ -92,7 +111,7 @@ const Save = (() => {
 
   return {
     get data() { return data; },
-    write, reset, upgrade, stat, missionState, claimableCount,
+    write, reset, upgrade, stat, mapStat, clearMap, missionState, claimableCount,
     dailyAvailable, dailyNextStreak, claimDaily,
   };
 })();

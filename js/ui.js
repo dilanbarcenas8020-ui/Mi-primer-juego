@@ -2,7 +2,7 @@
 
 const UI = (() => {
   const $ = id => document.getElementById(id);
-  const SCREENS = ['menu', 'chars', 'shop', 'missions', 'settings', 'daily', 'levelup', 'chest', 'pause', 'over'];
+  const SCREENS = ['menu', 'maps', 'chars', 'shop', 'missions', 'settings', 'daily', 'levelup', 'chest', 'stage', 'pause', 'over'];
   let current = 'menu';
 
   function show(id) {
@@ -45,13 +45,68 @@ const UI = (() => {
     $('menuChar').innerHTML = `
       <div class="avatar" style="--c:${ch.color}">${w.icon}</div>
       <div class="info"><b>${esc(ch.name)}</b><small>${w.icon} ${esc(w.name)} · Toca para cambiar</small></div>`;
+    const map = MAPS[Save.data.mapSel] || MAPS[0];
+    const ms = Save.mapStat(map.id);
+    $('menuMap').innerHTML = `
+      <div class="avatar" style="--c:rgb(${map.grid})">${map.icon}</div>
+      <div class="info"><b>${esc(map.name)}</b><small>${esc(map.diff)} · ${ms.cleared ? '✔ Completado' : `Mejor nivel ${ms.bestLevel}/${BOSS_EVERY}`}</small></div>`;
+    $('playBtn').textContent = `▶ JUGAR`;
     setBadge($('missionBadge'), Save.claimableCount());
     setBadge($('shopBadge'), affordableUpgrades());
     $('dailyBadge').classList.toggle('hidden', !Save.dailyAvailable());
     const s = Save.data.stats;
+    const cleared = Save.stat('mapsCleared');
     $('records').innerHTML = s.runs
-      ? `🏆 Mejor tiempo <b>${fmtTime(s.bestTime)}</b> · Nivel máx. <b>${s.bestLevel}</b><br>💀 ${fmt(s.kills)} enemigos · ☠️ ${s.bossKills} jefes · 🎮 ${s.runs} partidas`
-      : 'Llega lo más lejos que puedas. ¡Cada partida te hace más fuerte!';
+      ? `🗺️ Mapas completados <b>${cleared}/${MAPS.length}</b> · Nivel máx. <b>${s.bestLevel}</b><br>💀 ${fmt(s.kills)} enemigos · ☠️ ${s.bossKills} jefes · 👹 ${s.subbosses} subjefes · 🎮 ${s.runs} partidas`
+      : `Llega al nivel ${BOSS_EVERY} y derrota al jefe para desbloquear nuevos mapas.`;
+  }
+
+  // ---------- Mapas ----------
+  function mult(x) { return 'x' + (Math.round(x * 100) / 100).toString().replace('.', ','); }
+
+  function renderMaps() {
+    refreshGold();
+    const list = $('mapList');
+    list.innerHTML = '';
+    MAPS.forEach((map, i) => {
+      const unlocked = i < Save.data.mapsUnlocked;
+      const selected = Save.data.mapSel === i;
+      const ms = Save.mapStat(map.id);
+      const row = document.createElement('div');
+      row.className = 'row map-row' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
+      row.style.animationDelay = i * 50 + 'ms';
+      row.style.setProperty('--mc', `rgb(${map.grid})`);
+      const newFoes = map.enemies.filter(id => !ENEMIES[id].spawnOnly).map(id => esc(ENEMIES[id].name));
+      const newWeapons = Object.values(WEAPONS).filter(w => w.map === i).map(w => `${w.icon} ${esc(w.name)}`);
+      const newPassives = Object.values(PASSIVES).filter(p => p.map === i && i > 0).map(p => `${p.icon} ${esc(p.name)}`);
+      let status;
+      if (!unlocked) status = `<small class="lock-req">🔒 Derrota a <b>${esc(MAPS[i - 1].boss.name)}</b> (nivel ${BOSS_EVERY}) en ${esc(MAPS[i - 1].name)}</small>`;
+      else status = `<small>${ms.cleared ? '✔ Completado' : '⚔️ Sin completar'} · Mejor nivel: <b>${ms.bestLevel}</b></small>`;
+      let btn;
+      if (!unlocked) btn = '<button class="btn" disabled>🔒</button>';
+      else if (selected) btn = '<button class="btn" disabled>Elegido</button>';
+      else btn = '<button class="btn" data-act="pick">Elegir</button>';
+      row.innerHTML = `
+        <div class="avatar" style="--c:rgb(${map.grid})">${unlocked ? map.icon : '🔒'}</div>
+        <div class="grow">
+          <b>${esc(map.name)} <span class="diff">${esc(map.diff)}</span></b>
+          <div class="chips">
+            <span>❤️ Vida ${mult(map.hp)}</span><span>⚔️ Daño ${mult(map.dmg)}</span><span class="good">🪙 Oro ${mult(map.gold)}</span>
+          </div>
+          ${i > 0 ? `<small>👾 Nuevos: ${newFoes.join(', ')}${newWeapons.length ? ` · Arma: ${newWeapons.join(', ')}` : ''}${newPassives.length ? ` · Pasiva: ${newPassives.join(', ')}` : ''}</small>` : '<small>👾 Monstruos clásicos. ¡El punto de partida!</small>'}
+          <small>👹 Subjefe: ${esc(map.subboss.name)} · ☠️ Jefe: ${esc(map.boss.name)}</small>
+          ${status}
+        </div>
+        ${btn}`;
+      const b = row.querySelector('[data-act]');
+      if (b) b.onclick = () => {
+        Save.data.mapSel = i;
+        Save.write();
+        Sound.play('click');
+        renderMaps();
+      };
+      list.appendChild(row);
+    });
   }
 
   // ---------- Personajes ----------
@@ -196,6 +251,7 @@ const UI = (() => {
     Sound.play('click');
     if (id === 'menu') renderMenu();
     if (id === 'chars') renderChars();
+    if (id === 'maps') renderMaps();
     if (id === 'shop') renderShop();
     if (id === 'missions') renderMissions();
     if (id === 'settings') {
@@ -242,10 +298,14 @@ const UI = (() => {
       $('slots').innerHTML = slotsHtml(buildList(S));
     }
 
+    setText('nextEvent', nextEventText(S.level));
+
     const boss = S.boss;
     $('boss').classList.toggle('hidden', !boss);
     if (boss) {
-      setText('bossName', boss.name);
+      const label = (boss.kind === 'boss' ? '☠️ ' : boss.kind === 'subboss' ? '👹 ' : '⚠️ ') + boss.name + (boss.tier > 1 ? ` · Nv ${boss.level}` : '');
+      setText('bossName', label);
+      if (hudCache.bk !== boss.kind) { hudCache.bk = boss.kind; $('boss').dataset.kind = boss.kind; }
       const w = Math.max(0, boss.hp / boss.maxHp * 100).toFixed(1) + '%';
       if (hudCache.bw !== w) { hudCache.bw = w; $('bossFill').style.width = w; }
     }
@@ -331,7 +391,8 @@ const UI = (() => {
   }
 
   // ---------- Cofre ----------
-  function showChest(items, gold) {
+  function showChest(items, gold, tier = 1) {
+    $('chestTitle').textContent = tier >= 3 ? '👑 ¡COFRE DE JEFE!' : tier === 2 ? '💜 ¡COFRE DE SUBJEFE!' : '🎁 ¡COFRE!';
     const box = $('chestItems');
     box.innerHTML = '';
     const btn = $('chestBtn');
@@ -363,7 +424,9 @@ const UI = (() => {
       <span>Velocidad <b>${Math.round(st.speed)}</b></span>
       <span>Crítico <b>${Math.round(st.crit * 100)}%</b></span>
       <span>Armadura <b>${st.armor}</b></span>
-      <span>Revivir <b>${S.revives}</b></span>`;
+      <span>Revivir <b>${S.revives}</b></span>
+      <span>Mapa <b>${S.map.icon} ${esc(S.map.name)}</b></span>
+      <span>Oro del mapa <b>${mult(S.map.gold)}</b></span>`;
     show('pause');
   }
 
@@ -371,8 +434,9 @@ const UI = (() => {
   function showGameOver(r) {
     $('hud').classList.add('hidden');
     const title = $('overTitle');
-    title.textContent = r.won ? '🏆 ¡VICTORIA!' : 'HAS CAÍDO';
-    title.classList.toggle('win', r.won);
+    title.textContent = r.won ? '🏆 ¡VICTORIA!' : r.stageClearedNow ? '🏆 ETAPA SUPERADA' : 'HAS CAÍDO';
+    title.classList.toggle('win', r.won || r.stageClearedNow);
+    $('overMap').textContent = `${r.map.icon} ${r.map.name} · ${r.map.diff}`;
     $('overRecords').innerHTML = r.records.map((x, i) => `<span style="animation-delay:${i * 120}ms">🏆 ¡Nuevo récord: ${x}!</span>`).join('');
     $('overStats').innerHTML = `
       <div><b>${fmtTime(r.time)}</b>Tiempo</div>
@@ -382,10 +446,13 @@ const UI = (() => {
     $('overBuild').innerHTML = slotsHtml(r.build);
     let lines = `<div class="line"><span>Monedas recogidas</span><b>${fmt(r.coins)}</b></div>
       <div class="line"><span>Bonus por tiempo</span><b>${fmt(r.timeBonus)}</b></div>`;
-    if (r.bossBonus) lines += `<div class="line"><span>Bonus por jefes</span><b>${fmt(r.bossBonus)}</b></div>`;
-    if (r.winBonus) lines += `<div class="line"><span>Bonus de victoria</span><b>${fmt(r.winBonus)}</b></div>`;
-    if (r.mult > 1.001) lines += `<div class="line"><span>Multiplicador de oro</span><b>x${r.mult.toFixed(2)}</b></div>`;
+    if (r.bossBonus) lines += `<div class="line"><span>Bonus de monstruos (⚠️${r.specials} 👹${r.subbosses} ☠️${r.bossKills})</span><b>${fmt(r.bossBonus)}</b></div>`;
+    if (r.mult > 1.001) lines += `<div class="line"><span>Multiplicador de oro</span><b>${mult(r.mult)}</b></div>`;
+    if (r.mapMult > 1.001) lines += `<div class="line"><span>Bonus del mapa ${r.map.icon}</span><b>${mult(r.mapMult)}</b></div>`;
     $('overBreakdown').innerHTML = lines;
+    const again = $('againBtn');
+    const nextSel = MAPS[Save.data.mapSel];
+    again.textContent = r.won ? `⬆️ JUGAR EN ${nextSel.name.toUpperCase()}` : '↻ JUGAR OTRA VEZ';
 
     // El oro sube contando
     const totalEl = $('overTotal');
@@ -398,8 +465,37 @@ const UI = (() => {
     requestAnimationFrame(tick);
     if (r.total > 0) setTimeout(() => Sound.play('chest'), 300);
 
-    $('overNudges').innerHTML = nudges().join('');
+    const extra = [];
+    if (r.stageClearedNow && r.next) extra.push(`<div class="nudge unlock-nudge">🔓 ¡Desbloqueaste <b>${r.next.icon} ${esc(r.next.name)}</b>! Monstruos más duros, nuevas armas y oro ${mult(r.next.gold)}.</div>`);
+    else if (!Save.mapStat(r.map.id).cleared) {
+      const left = BOSS_EVERY - r.level;
+      extra.push(left > 0
+        ? `<div class="nudge">☠️ Llegaste al nivel <b>${r.level}</b>: el jefe <b>${esc(r.map.boss.name)}</b> aparece en el nivel ${BOSS_EVERY}. ¡Te faltan ${left}!<div class="progress"><div style="width:${Math.min(100, r.level / BOSS_EVERY * 100)}%"></div></div></div>`
+        : `<div class="nudge">☠️ Llegaste al jefe <b>${esc(r.map.boss.name)}</b>. ¡Mejora tu equipo y derrótalo!</div>`);
+    }
+    $('overNudges').innerHTML = extra.concat(nudges()).slice(0, 4).join('');
     show('over');
+  }
+
+  // ---------- Etapa completada ----------
+  function showStageClear(info) {
+    const { map, next } = info;
+    $('stageSub').textContent = `Derrotaste a ${map.boss.name} en ${map.name}.`;
+    $('stageUnlock').innerHTML = next
+      ? `<div class="unlock-card" style="--mc:rgb(${next.grid})"><div class="avatar" style="--c:rgb(${next.grid})">${next.icon}</div>
+          <div><small>🔓 NUEVO MAPA DESBLOQUEADO</small><b>${esc(next.name)} · ${esc(next.diff)}</b>
+          <small>❤️ ${mult(next.hp)} · ⚔️ ${mult(next.dmg)} · 🪙 ${mult(next.gold)} · ${next.enemies.map(id => esc(ENEMIES[id].name)).join(', ')}</small></div></div>`
+      : `<div class="unlock-card"><div class="avatar" style="--c:#ffd166">👑</div><div><b>¡Conquistaste todos los mapas!</b><small>Sigue luchando para conseguir más oro y récords.</small></div></div>`;
+    $('ascendBtn').textContent = next ? `⬆️ Ascender a ${next.name}` : '🏆 Terminar con victoria';
+    show('stage');
+  }
+
+  // Texto del próximo monstruo importante según el nivel
+  function nextEventText(level) {
+    const n = (Math.floor(level / SPECIAL_EVERY) + 1) * SPECIAL_EVERY;
+    if (n % BOSS_EVERY === 0) return `☠️ Jefe en Nv ${n}`;
+    if (n % SUBBOSS_EVERY === 0) return `👹 Subjefe en Nv ${n}`;
+    return `⚠️ Especial en Nv ${n}`;
   }
 
   // Motivos para volver a jugar
@@ -433,7 +529,10 @@ const UI = (() => {
   function init() {
     document.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => go(b.dataset.go); });
     $('menuChar').onclick = () => go('chars');
-    $('playBtn').onclick = () => Game.start(Save.data.char);
+    $('menuMap').onclick = () => go('maps');
+    $('playBtn').onclick = () => Game.start(Save.data.char, Save.data.mapSel);
+    $('ascendBtn').onclick = () => Game.stageAscend();
+    $('stayBtn').onclick = () => Game.stageContinue();
     $('dailyBtn').onclick = () => { Sound.play('click'); openDaily(); };
     $('dailyClaim').onclick = () => {
       const g = Save.claimDaily();
@@ -451,7 +550,7 @@ const UI = (() => {
     $('pauseBtn').onclick = () => Game.pause();
     $('resumeBtn').onclick = () => Game.resume();
     $('quitBtn').onclick = () => Game.quit();
-    $('againBtn').onclick = () => Game.start(Save.data.char);
+    $('againBtn').onclick = () => Game.start(Save.data.char, Save.data.mapSel);
     $('overMenuBtn').onclick = goMenu;
     $('optSfx').onchange = e => { Save.data.sfx = e.target.checked; Save.write(); Sound.applySettings(); };
     $('optMusic').onchange = e => { Save.data.music = e.target.checked; Save.write(); Sound.applySettings(); };
@@ -470,6 +569,6 @@ const UI = (() => {
 
   return {
     init, show, banner, hint, updateHud, onRunStart, showLevelUp, showChest, showPause,
-    showGameOver, closeOverlays,
+    showGameOver, showStageClear, closeOverlays,
   };
 })();
