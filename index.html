@@ -22,6 +22,7 @@
     <div class="timer-box">
       <div class="timer" id="timer">00:00</div>
       <div class="next-event" id="nextEvent"></div>
+      <div class="status" id="status"></div>
     </div>
     <div class="counters">
       <span>💀 <b id="kills">0</b></span>
@@ -44,7 +45,7 @@
 <!-- Menú principal -->
 <section class="screen" id="menu">
   <div class="topbar">
-    <div class="gold">🪙 <b class="goldVal">0</b></div>
+    <div class="gold-row"><div class="gold">🪙 <b class="goldVal">0</b></div><div class="stars hidden" id="menuStars"></div></div>
     <button class="icon-btn" data-go="settings" aria-label="Ajustes">⚙️</button>
   </div>
   <div class="menu-center">
@@ -60,6 +61,7 @@
       <button class="btn" data-go="shop">⬆️ Mejoras<i class="badge hidden" id="shopBadge"></i></button>
       <button class="btn" data-go="missions">🎯 Misiones<i class="badge hidden" id="missionBadge"></i></button>
       <button class="btn" id="dailyBtn">🎁 Diario<i class="badge hidden" id="dailyBadge">!</i></button>
+      <button class="btn rebirth-btn" data-go="rebirth">♻️ Renacer <small id="rebirthProg"></small><i class="badge hidden" id="rebirthBadge">!</i></button>
     </div>
     <div class="records" id="records"></div>
   </div>
@@ -74,6 +76,26 @@
   </div>
   <p class="sub">Derrota al jefe del nivel 30 de cada mapa para desbloquear el siguiente.</p>
   <div class="list" id="mapList"></div>
+</section>
+
+<!-- Renacer -->
+<section class="screen" id="rebirth">
+  <div class="topbar">
+    <button class="icon-btn" data-go="menu" aria-label="Volver">←</button>
+    <h2>Renacer</h2>
+    <div class="gold">🪙 <b class="goldVal">0</b></div>
+  </div>
+  <div class="panel rebirth-panel">
+    <div class="rebirth-level" id="rbLevel"></div>
+    <p class="sub">Reinicia todo tu progreso a cambio de bonos permanentes que te hacen avanzar más rápido. Cada renacimiento cuesta más.</p>
+    <div class="rb-compare" id="rbCompare"></div>
+    <div class="rb-cost" id="rbCost"></div>
+    <div class="rb-lists">
+      <div><b>Se reinicia</b><small>Oro, mejoras, personajes, mapas completados, misiones y estadísticas.</small></div>
+      <div><b>Se conserva</b><small>Tus renacimientos y sus bonos, la racha diaria, el historial total y los ajustes.</small></div>
+    </div>
+    <button class="btn big primary" id="rebirthBtn">♻️ RENACER</button>
+  </div>
 </section>
 
 <!-- Personajes -->

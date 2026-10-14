@@ -684,3 +684,67 @@ button { font: inherit; color: inherit; }
   .pick-row { grid-template-columns: 1fr; }
 }
 .row small b { display: inline; }
+
+/* ---------- Renacer, niveles especiales y estados ---------- */
+.gold-row { display: flex; align-items: center; gap: 8px; }
+.stars {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(124, 255, 107, .12);
+  border: 1px solid rgba(124, 255, 107, .4);
+  color: var(--green);
+  font-weight: 800;
+}
+.menu-grid .rebirth-btn { grid-column: 1 / -1; }
+.rebirth-btn small { color: var(--muted); font-weight: 600; }
+.list-title {
+  margin: 14px 0 2px;
+  font-family: var(--title);
+  font-size: 16px;
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(255, 209, 102, .5);
+}
+.special-row { background: linear-gradient(135deg, rgba(255, 209, 102, .06), transparent 60%), var(--panel); }
+.special-row small.trap { color: #ffb3c6; }
+.special-row small.help { color: #b8ffb0; }
+
+.status { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 260px; }
+.status span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, .55);
+  white-space: nowrap;
+}
+.status .bad { color: #ff8fa8; border: 1px solid rgba(255, 92, 138, .5); }
+.status .good { color: var(--green); border: 1px solid rgba(124, 255, 107, .5); }
+.status .warn { color: var(--gold); border: 1px solid rgba(255, 209, 102, .5); }
+
+.rebirth-panel { max-width: 520px; margin: 0; }
+.rebirth-level { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+.rebirth-level .rb-icon { font-size: 30px; }
+.rebirth-level b { font-family: var(--body); font-weight: 800; font-size: 44px; color: var(--green); text-shadow: 0 0 18px rgba(124, 255, 107, .6); }
+.rebirth-level small { color: var(--muted); }
+.rb-compare { display: flex; flex-direction: column; gap: 4px; }
+.rb-compare > div {
+  display: grid;
+  grid-template-columns: 1fr 64px 18px 80px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  font-size: 14px;
+}
+.rb-compare .rb-head { background: none; color: var(--muted); font-size: 11px; }
+.rb-compare b { text-align: right; }
+.rb-compare i { text-align: center; color: var(--muted); font-style: normal; }
+.rb-compare b.next { color: var(--green); }
+.rb-cost { font-size: 14px; }
+.rb-cost .line { display: flex; justify-content: space-between; }
+.rb-cost small { display: block; margin-top: 6px; color: var(--muted); }
+.rb-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rb-lists > div { padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .04); font-size: 13px; }
+.rb-lists > div:first-child { border: 1px solid rgba(255, 92, 138, .35); }
+.rb-lists > div:last-child { border: 1px solid rgba(124, 255, 107, .35); }
+.rb-lists small { display: block; color: var(--muted); margin-top: 4px; line-height: 1.4; }

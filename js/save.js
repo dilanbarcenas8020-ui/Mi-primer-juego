@@ -17,6 +17,8 @@ const Save = (() => {
         maxCombo: 0, chests: 0, goldEarned: 0, bought: 0, wins: 0, specials: 0, subbosses: 0,
       },
       claimed: {},
+      rebirths: 0,      // veces que renaciste (no se reinicia)
+      lifetime: { kills: 0, runs: 0, goldEarned: 0 }, // historial total (no se reinicia)
       daily: { last: '', streak: 0 },
       sfx: true,
       music: true,
@@ -42,8 +44,16 @@ const Save = (() => {
           data.mapStats.ciudad = { bestLevel: old.bestLevel || 0, bestTime: old.bestTime || 0, cleared: (old.wins || 0) > 0 };
           if (data.mapStats.ciudad.cleared) data.mapsUnlocked = 2;
         }
+        data.lifetime = Object.assign(fresh().lifetime, saved.lifetime || {});
+        if (!saved.lifetime) {
+          data.lifetime.kills = data.stats.kills;
+          data.lifetime.runs = data.stats.runs;
+          data.lifetime.goldEarned = data.stats.goldEarned;
+        }
+        data.rebirths = Math.max(0, data.rebirths | 0);
         data.mapsUnlocked = Math.max(1, Math.min(MAPS.length, data.mapsUnlocked | 0));
-        data.mapSel = Math.max(0, Math.min(data.mapsUnlocked - 1, data.mapSel | 0));
+        data.mapSel = data.mapSel | 0;
+        if (!mapUnlocked(data.mapSel)) data.mapSel = data.mapsUnlocked - 1;
       }
     } catch (e) {
       data = fresh();
@@ -63,6 +73,9 @@ const Save = (() => {
 
   function stat(name) {
     if (name === 'charsUnlocked') return Object.keys(data.chars).length - 1;
+    if (name === 'clearedMarinela') return mapStat('marinela').cleared ? 1 : 0;
+    if (name === 'clearedPiru') return mapStat('piru').cleared ? 1 : 0;
+    if (name === 'rebirths') return data.rebirths;
     if (name === 'mapsCleared') return MAPS.filter(m => mapStat(m.id).cleared).length;
     return data.stats[name] || 0;
   }
@@ -70,6 +83,27 @@ const Save = (() => {
   function mapStat(id) {
     if (!data.mapStats[id]) data.mapStats[id] = { bestLevel: 0, bestTime: 0, cleared: false };
     return data.mapStats[id];
+  }
+
+  // ¿Se puede jugar este mapa? (índice en ALL_MAPS)
+  function mapUnlocked(i) {
+    const m = ALL_MAPS[i];
+    if (!m) return false;
+    if (!m.special) return i < data.mapsUnlocked;
+    return mapStat(MAPS[m.unlockAfter].id).cleared;
+  }
+
+  // Renacer: reinicia todo menos los renacimientos, el historial, la racha diaria y los ajustes
+  function rebirth() {
+    const cost = rebirthCost(data.rebirths);
+    if (data.gold < cost) return false;
+    const keep = {
+      rebirths: data.rebirths + 1, lifetime: data.lifetime, daily: data.daily,
+      sfx: data.sfx, music: data.music, tutorialDone: true,
+    };
+    data = Object.assign(fresh(), keep);
+    write();
+    return true;
   }
 
   // Marca un mapa como completado y desbloquea el siguiente
@@ -117,7 +151,7 @@ const Save = (() => {
 
   return {
     get data() { return data; },
-    write, reset, upgrade, stat, mapStat, clearMap, missionState, claimableCount,
+    write, reset, upgrade, stat, mapStat, mapUnlocked, clearMap, rebirth, missionState, claimableCount,
     dailyAvailable, dailyNextStreak, claimDaily,
   };
 })();

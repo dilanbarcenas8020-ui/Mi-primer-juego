@@ -2,7 +2,7 @@
 
 const UI = (() => {
   const $ = id => document.getElementById(id);
-  const SCREENS = ['menu', 'maps', 'chars', 'shop', 'missions', 'settings', 'daily', 'levelup', 'chest', 'stage', 'pause', 'over'];
+  const SCREENS = ['menu', 'maps', 'chars', 'shop', 'missions', 'rebirth', 'settings', 'daily', 'levelup', 'chest', 'stage', 'pause', 'over'];
   let current = 'menu';
 
   function show(id) {
@@ -45,7 +45,7 @@ const UI = (() => {
     $('menuChar').innerHTML = `
       <div class="avatar" style="--c:${ch.color}">${w.icon}</div>
       <div class="info"><b>${esc(ch.name)}</b><small>${w.icon} ${esc(w.name)} · Toca para cambiar</small></div>`;
-    const map = MAPS[Save.data.mapSel] || MAPS[0];
+    const map = ALL_MAPS[Save.data.mapSel] || MAPS[0];
     const ms = Save.mapStat(map.id);
     $('menuMap').innerHTML = `
       <div class="avatar" style="--c:rgb(${map.grid})">${map.icon}</div>
@@ -53,6 +53,12 @@ const UI = (() => {
     $('playBtn').textContent = `▶ JUGAR`;
     setBadge($('missionBadge'), Save.claimableCount());
     setBadge($('shopBadge'), affordableUpgrades());
+    const R = Save.data.rebirths, cost = rebirthCost(R);
+    $('menuStars').classList.toggle('hidden', !R);
+    $('menuStars').textContent = `♻️ ${R}`;
+    $('menuStars').title = `Renacimientos: ${R}`;
+    $('rebirthProg').textContent = `${Math.min(100, Math.floor(Save.data.gold / cost * 100))}%`;
+    $('rebirthBadge').classList.toggle('hidden', Save.data.gold < cost);
     $('dailyBadge').classList.toggle('hidden', !Save.dailyAvailable());
     const s = Save.data.stats;
     const cleared = Save.stat('mapsCleared');
@@ -68,8 +74,15 @@ const UI = (() => {
     refreshGold();
     const list = $('mapList');
     list.innerHTML = '';
-    MAPS.forEach((map, i) => {
-      const unlocked = i < Save.data.mapsUnlocked;
+    ALL_MAPS.forEach((map, i) => {
+      if (i === MAPS.length) {
+        const h = document.createElement('h3');
+        h.className = 'list-title';
+        h.textContent = '⭐ Niveles especiales';
+        list.appendChild(h);
+      }
+      if (map.special) { list.appendChild(specialMapRow(map, i)); return; }
+      const unlocked = Save.mapUnlocked(i);
       const selected = Save.data.mapSel === i;
       const ms = Save.mapStat(map.id);
       const row = document.createElement('div');
@@ -107,6 +120,66 @@ const UI = (() => {
       };
       list.appendChild(row);
     });
+  }
+
+  // Fila de un nivel especial (trampas y ayudas)
+  function specialMapRow(map, i) {
+    const unlocked = Save.mapUnlocked(i);
+    const selected = Save.data.mapSel === i;
+    const ms = Save.mapStat(map.id);
+    const row = document.createElement('div');
+    row.className = 'row map-row special-row' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
+    row.style.animationDelay = i * 50 + 'ms';
+    row.style.setProperty('--mc', `rgb(${map.grid})`);
+    const req = MAPS[map.unlockAfter];
+    const status = unlocked
+      ? `<small>${ms.cleared ? '🏆 Completado' : '⚔️ Sin completar'} · Mejor nivel: <b>${ms.bestLevel}</b></small>`
+      : `<small class="lock-req">🔒 Completa <b>${esc(req.icon + ' ' + req.name)}</b> para desbloquearlo</small>`;
+    const btn = !unlocked ? '<button class="btn" disabled>🔒</button>'
+      : selected ? '<button class="btn" disabled>Elegido</button>' : '<button class="btn" data-act="pick">Elegir</button>';
+    row.innerHTML = `
+      <div class="avatar" style="--c:rgb(${map.grid})">${unlocked ? map.icon : '🔒'}</div>
+      <div class="grow">
+        <b>${esc(map.name)} <span class="diff">${esc(map.diff)}</span></b>
+        <div class="chips">
+          <span>❤️ Vida ${mult(map.hp)}</span><span>⚔️ Daño ${mult(map.dmg)}</span><span class="good">🪙 Oro ${mult(map.gold)}</span>
+        </div>
+        <small>${esc(map.desc)}</small>
+        <small class="trap">⚠️ ${map.traps.map(esc).join(' · ')}</small>
+        <small class="help">💡 ${map.helps.map(esc).join(' · ')}</small>
+        <small>👾 Monstruos de: ${MAPS.slice(0, map.tier + 1).map(m => m.icon).join(' ')} · 👹 ${esc(map.subboss.name)} · ☠️ ${esc(map.boss.name)}</small>
+        ${status}
+      </div>
+      ${btn}`;
+    const b = row.querySelector('[data-act]');
+    if (b) b.onclick = () => {
+      Save.data.mapSel = i;
+      Save.write();
+      Sound.play('click');
+      renderMaps();
+    };
+    return row;
+  }
+
+  // ---------- Renacer ----------
+  function pct(x) { return '+' + Math.round(x * 100) + '%'; }
+
+  function renderRebirth() {
+    refreshGold();
+    const R = Save.data.rebirths, cost = rebirthCost(R), gold = Save.data.gold;
+    $('rbLevel').innerHTML = `<span class="rb-icon">♻️</span><b>${R}</b><small>${R === 1 ? 'renacimiento' : 'renacimientos'}</small>`;
+    const row = (icon, name, per) => `<div><span>${icon} ${name}</span><b>${pct(R * per)}</b><i>→</i><b class="next">${pct((R + 1) * per)}</b></div>`;
+    $('rbCompare').innerHTML = `
+      <div class="rb-head"><span>Bono permanente</span><b>Ahora</b><i></i><b>Al renacer</b></div>
+      ${row('⚔️', 'Daño', REBIRTH.dmg)}
+      ${row('📈', 'Experiencia', REBIRTH.xp)}
+      ${row('🪙', 'Oro', REBIRTH.gold)}
+      ${row('❤️', 'Vida', REBIRTH.hp)}`;
+    const p = Math.min(100, gold / cost * 100);
+    $('rbCost').innerHTML = `<div class="line"><span>Precio</span><b>🪙 ${fmt(cost)}</b></div>
+      <div class="progress"><div style="width:${p}%"></div></div>
+      <small>${gold >= cost ? '¡Ya puedes renacer!' : `Te faltan 🪙 ${fmt(cost - gold)}`} · El siguiente costará 🪙 ${fmt(rebirthCost(R + 1))}</small>`;
+    $('rebirthBtn').disabled = gold < cost;
   }
 
   // ---------- Personajes ----------
@@ -252,6 +325,7 @@ const UI = (() => {
     if (id === 'menu') renderMenu();
     if (id === 'chars') renderChars();
     if (id === 'maps') renderMaps();
+    if (id === 'rebirth') renderRebirth();
     if (id === 'shop') renderShop();
     if (id === 'missions') renderMissions();
     if (id === 'settings') {
@@ -299,6 +373,8 @@ const UI = (() => {
     }
 
     setText('nextEvent', nextEventText(S.level));
+    const fx = statusText(S);
+    if (hudCache.fx !== fx) { hudCache.fx = fx; $('status').innerHTML = fx; }
 
     const boss = S.boss;
     $('boss').classList.toggle('hidden', !boss);
@@ -451,8 +527,8 @@ const UI = (() => {
     if (r.mapMult > 1.001) lines += `<div class="line"><span>Bonus del mapa ${r.map.icon}</span><b>${mult(r.mapMult)}</b></div>`;
     $('overBreakdown').innerHTML = lines;
     const again = $('againBtn');
-    const nextSel = MAPS[Save.data.mapSel];
-    again.textContent = r.won ? `⬆️ JUGAR EN ${nextSel.name.toUpperCase()}` : '↻ JUGAR OTRA VEZ';
+    const nextSel = ALL_MAPS[Save.data.mapSel];
+    again.textContent = r.won && !r.special ? `⬆️ JUGAR EN ${nextSel.name.toUpperCase()}` : '↻ JUGAR OTRA VEZ';
 
     // El oro sube contando
     const totalEl = $('overTotal');
@@ -466,7 +542,8 @@ const UI = (() => {
     if (r.total > 0) setTimeout(() => Sound.play('chest'), 300);
 
     const extra = [];
-    if (r.stageClearedNow && r.next) extra.push(`<div class="nudge unlock-nudge">🔓 ¡Desbloqueaste <b>${r.next.icon} ${esc(r.next.name)}</b>! Monstruos más duros, nuevas armas y oro ${mult(r.next.gold)}.</div>`);
+    if (r.stageClearedNow && r.special) extra.push(`<div class="nudge unlock-nudge">🏆 ¡Completaste el nivel especial <b>${r.map.icon} ${esc(r.map.name)}</b>! Reclama su misión.</div>`);
+    else if (r.stageClearedNow && r.next) extra.push(`<div class="nudge unlock-nudge">🔓 ¡Desbloqueaste <b>${r.next.icon} ${esc(r.next.name)}</b>! Monstruos más duros, nuevas armas y oro ${mult(r.next.gold)}.</div>`);
     else if (!Save.mapStat(r.map.id).cleared) {
       const left = BOSS_EVERY - r.level;
       extra.push(left > 0
@@ -481,13 +558,36 @@ const UI = (() => {
   function showStageClear(info) {
     const { map, next } = info;
     $('stageSub').textContent = `Derrotaste a ${map.boss.name} en ${map.name}.`;
-    $('stageUnlock').innerHTML = next
+    document.querySelector('#stage .stage-title').textContent = info.special ? '🏆 ¡NIVEL ESPECIAL COMPLETADO!' : '🏆 ¡ETAPA COMPLETADA!';
+    $('stageUnlock').innerHTML = info.special
+      ? `<div class="unlock-card" style="--mc:rgb(${map.grid})"><div class="avatar" style="--c:rgb(${map.grid})">${map.icon}</div><div><small>🏆 NIVEL ESPECIAL</small><b>¡Superaste ${esc(map.name)}!</b><small>Bonus de 🪙 ${fmt(map.clearBonus)} × oro del mapa y una misión especial para reclamar.</small></div></div>`
+      : next
       ? `<div class="unlock-card" style="--mc:rgb(${next.grid})"><div class="avatar" style="--c:rgb(${next.grid})">${next.icon}</div>
           <div><small>🔓 NUEVO MAPA DESBLOQUEADO</small><b>${esc(next.name)} · ${esc(next.diff)}</b>
           <small>❤️ ${mult(next.hp)} · ⚔️ ${mult(next.dmg)} · 🪙 ${mult(next.gold)} · ${next.enemies.map(id => esc(ENEMIES[id].name)).join(', ')}</small></div></div>`
       : `<div class="unlock-card"><div class="avatar" style="--c:#ffd166">👑</div><div><b>¡Conquistaste todos los mapas!</b><small>Sigue luchando para conseguir más oro y récords.</small></div></div>`;
     $('ascendBtn').textContent = next ? `⬆️ Ascender a ${next.name}` : '🏆 Terminar con victoria';
+    $('stayBtn').textContent = info.special ? '⚔️ Seguir aquí (más jefes y más premios)' : '⚔️ Seguir aquí (jefes cada 30 niveles con más premios)';
     show('stage');
+  }
+
+  // Efectos activos en la partida (trampas, ayudas, maldiciones)
+  function statusText(S) {
+    const out = [];
+    const chip = (cls, txt) => out.push(`<span class="${cls}">${txt}</span>`);
+    if (S.player.slowT > 0) chip('bad', '❄️ Congelado');
+    if (S.special === 'marinela') {
+      if (S.outZone) chip('bad', '🍥 ¡Fuera de la zona!');
+      if (S.inCaramel) chip('bad', '🍯 Caramelo');
+      if (S.sugarT > 0) chip('good', `🧁 Azúcar ${Math.ceil(S.sugarT)}s`);
+      if (S.zone.warn) chip('warn', `🍥 Se mueve en ${Math.max(0, Math.ceil(S.zone.moveIn))}s`);
+    } else if (S.special === 'piru') {
+      if (S.curse) chip('bad', `${S.curse.icon} ${S.curse.name} ${Math.ceil(S.curseLeft)}s`);
+      else if (S.curseT < 10) chip('warn', `😈 Maldición en ${Math.ceil(S.curseT)}s`);
+      if (S.blessT > 0) chip('good', `✨ Bendición ${Math.ceil(S.blessT)}s`);
+      if (S.altar) chip('warn', `⛩️ Altar ${Math.round(Math.min(1, S.altar.charge / 3) * 100)}%`);
+    }
+    return out.join('');
   }
 
   // Texto del próximo monstruo importante según el nivel
@@ -554,6 +654,16 @@ const UI = (() => {
     $('overMenuBtn').onclick = goMenu;
     $('optSfx').onchange = e => { Save.data.sfx = e.target.checked; Save.write(); Sound.applySettings(); };
     $('optMusic').onchange = e => { Save.data.music = e.target.checked; Save.write(); Sound.applySettings(); };
+    $('rebirthBtn').onclick = () => {
+      const cost = rebirthCost(Save.data.rebirths);
+      if (Save.data.gold < cost) return;
+      if (!confirm('¿Renacer? Se reinicia TODO tu progreso (oro, mejoras, personajes, mapas, misiones y estadísticas) a cambio de bonos permanentes.')) return;
+      if (!Save.rebirth()) return;
+      Sound.applySettings();
+      Sound.play('stage');
+      goMenu();
+      banner(`♻️ ¡RENACISTE! Ahora tienes ${Save.data.rebirths}`, '#7cff6b');
+    };
     $('resetBtn').onclick = () => {
       if (!confirm('¿Seguro que quieres borrar TODO tu progreso? No se puede deshacer.')) return;
       Save.reset();

@@ -249,6 +249,52 @@ function mapEnemies(idx) {
   return out;
 }
 
+// Niveles especiales: además de los monstruos tienen trampas propias que cambian la forma de jugar.
+// unlockAfter: mapa que hay que completar · tier: hasta qué mapa se toman monstruos, armas y pasivas.
+const SPECIAL_MAPS = [
+  {
+    id: 'marinela', name: 'Marinela', diff: 'Especial', icon: '🧁', special: 'marinela',
+    unlockAfter: 1, tier: 1, atkTier: 2,
+    hp: 3.0, dmg: 1.7, speed: 1.08, spawn: 1.3, gold: 2.0, xp: 1.08, clearBonus: 600,
+    bg: '#12050d', grid: '255,143,199', grid2: '255,209,102', decor: ['#ff8fc7', '#ffd166', '#c97b4a'],
+    enemies: [],
+    desc: 'Una fábrica de dulces cubierta de glaseado. Quédate dentro de la zona segura: afuera el glaseado te quema y te frena, y la zona se mueve y se encoge.',
+    traps: ['🍥 Zona de glaseado que se mueve y se encoge', '🍫 Lluvia de chispas de chocolate', '🍯 Charcos de caramelo que frenan'],
+    helps: ['🧁 Pastelitos que curan y dan velocidad', '🍯 El caramelo también frena a los monstruos'],
+    subboss: { name: 'Gólem de Merengue', color: '#ffd1e8', attacks: ['ring', 'mortar', 'dash'] },
+    boss: { name: 'Reina Glaseada', color: '#ff8fc7', attacks: ['spiral', 'mortar', 'ring', 'summon', 'dash'], summon: 'divisor' },
+  },
+  {
+    id: 'piru', name: 'Piru', diff: 'Infernal', icon: '😈', special: 'piru',
+    unlockAfter: 4, tier: 4, atkTier: 6,
+    hp: 10, dmg: 3.0, speed: 1.2, spawn: 1.4, gold: 4.5, xp: 1.25, clearBonus: 2000,
+    bg: '#030104', grid: '255,40,40', grid2: '140,0,50', decor: ['#ff2828', '#8c0032'],
+    enemies: [],
+    desc: 'El reino de Piru. Todo está a oscuras, solo ves cerca de ti, y cada cierto tiempo cae una maldición. Todos los monstruos de todos los mundos te esperan.',
+    traps: ['🌑 Oscuridad: solo ves cerca de ti', '😈 Maldiciones: frenesí, sangría, eclipse o lluvia de fuego'],
+    helps: ['🏮 Faroles que iluminan la zona', '⛩️ Altares: bendición de daño y luz… a cambio de una emboscada'],
+    subboss: { name: 'Sombra de Piru', color: '#ff2828', attacks: ['blink', 'laser', 'ring', 'mortar'] },
+    boss: { name: 'Piru', color: '#ff0040', attacks: ['laser', 'spiral', 'blink', 'slam', 'summon', 'mortar'], summon: 'espectro' },
+  },
+];
+
+const ALL_MAPS = MAPS.concat(SPECIAL_MAPS);
+
+// Maldiciones del nivel Piru
+const CURSES = [
+  { id: 'frenesi',  name: 'Frenesí',         icon: '😡', desc: 'Los monstruos son más rápidos' },
+  { id: 'sangria',  name: 'Sangría',         icon: '🩸', desc: 'Pierdes vida poco a poco' },
+  { id: 'eclipse',  name: 'Eclipse',         icon: '🌑', desc: 'La oscuridad se cierra' },
+  { id: 'infierno', name: 'Lluvia de fuego', icon: '☄️', desc: 'Cae fuego a tu alrededor' },
+];
+
+// Renacer: reinicia todo a cambio de bonos permanentes. Cada vez cuesta más.
+const REBIRTH = { base: 50000, growth: 2.5, dmg: 0.08, xp: 0.08, gold: 0.15, hp: 0.05 };
+
+function rebirthCost(n) {
+  return Math.round(REBIRTH.base * Math.pow(REBIRTH.growth, n) / 1000) * 1000;
+}
+
 const CHARACTERS = {
   nova:   { name: 'Nova',   color: '#5cf2ff', weapon: 'blaster',   price: 0,    desc: 'Equilibrada. Ideal para empezar.', mods: {} },
   brasa:  { name: 'Brasa',  color: '#ff7a45', weapon: 'aura',      price: 400,  desc: '+30% vida, -5% velocidad.', mods: { hp: 1.3, speed: 0.95 } },
@@ -316,6 +362,10 @@ const MISSIONS = [
   { id: 'char5',     text: 'Desbloquea 5 personajes',       stat: 'charsUnlocked', goal: 5,   reward: 1000 },
   { id: 'shop10',    text: 'Compra 10 mejoras',             stat: 'bought',     goal: 10,     reward: 200 },
   { id: 'shop40',    text: 'Compra 40 mejoras',             stat: 'bought',     goal: 40,     reward: 1500 },
+  { id: 'marinela1', text: 'Completa el nivel especial Marinela', stat: 'clearedMarinela', goal: 1, reward: 3000 },
+  { id: 'piru1',     text: 'Derrota a Piru en su reino',    stat: 'clearedPiru', goal: 1,     reward: 25000 },
+  { id: 'rebirth1',  text: 'Renace por primera vez',        stat: 'rebirths',   goal: 1,      reward: 2000 },
+  { id: 'rebirth3',  text: 'Renace 3 veces',                stat: 'rebirths',   goal: 3,      reward: 10000 },
 ];
 
 const DAILY_REWARDS = [50, 75, 100, 150, 200, 300, 500];
